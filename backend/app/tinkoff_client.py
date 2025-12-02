@@ -39,7 +39,6 @@ def create_tinkoff_payment(amount_cents: int, order_id: str, email: str = "", ph
         "CustomerEmail": email,
         "CustomerPhone": phone,
 
-        # чек нужен для DEMO терминалов!!!
         "Receipt": {
             "Email": email,
             "Phone": phone,
@@ -63,7 +62,12 @@ def create_tinkoff_payment(amount_cents: int, order_id: str, email: str = "", ph
 
     data = r.json()
 
+    # if not data.get("Success"):
+    #     raise Exception(data.get("Message") or data)
     if not data.get("Success"):
+        print("\n🔥 RAW TINKOFF ERROR:")
+        print(data)
+        print("🔥 END RAW TINKOFF ERROR\n")
         raise Exception(data.get("Message") or data)
 
     return {
