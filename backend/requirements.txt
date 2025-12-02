@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+sqlalchemy==2.0.22
+psycopg2-binary
+pydantic
+python-dotenv
+requests
+aiohttp
+jinja2
+alembic
+python-multipart
+celery[redis]
+aiosmtplib
+wkhtmltopdf-py
+python-dateutil
+PyYAML
+python -m uvicorn app.main:app --reload --port 8000

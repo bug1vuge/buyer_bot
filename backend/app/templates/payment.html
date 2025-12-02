@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Оплата: {{ product.title }}</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/suggestions-jquery@latest/dist/css/suggestions.min.css" />
+    <link rel="stylesheet" href="/static/styles/styles.css">
+  </head>
+  <body>
+    <header class="header">
+      <div class="container">
+        <div class="header__inner">
+          <p class="header__title">Товар - {{ product.title }}</p>
+          <p class="header__price">
+            Итого к оплате:
+            <span>
+              {{ '%.2f' % ((product.base_price_cents + (product.base_price_cents * product.agent_percent / 100)) / 100) }} ₽
+            </span>
+          </p>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="payment">
+        <div class="container">
+          <div class="payment__inner">
+
+            <form class="payment__form" id="payForm">
+              <div class="payment__blocks">
+                <div class="payment__block">
+                  <p class="payment__block-label">ФИО</p>
+                  <div class="payment__block-field">
+                    <input id="fullname" name="fullname" type="text" placeholder="Иванов Иван Иванович" required autofocus />
+                  </div>
+                </div>
+                <div class="payment__block">
+                  <p class="payment__block-label">Телефон</p>
+                  <div class="payment__block-field">
+                    <input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      required
+                      placeholder="+7 (___) ___-__-__"
+                    />
+                  </div>
+                </div>
+                <div class="payment__block">
+                  <p class="payment__block-label">Email</p>
+                  <div class="payment__block-field">
+                    <input id="email" type="email" name="email" placeholder="youremail@gmail.com" required />
+                  </div>
+                </div>
+                <div class="payment__block">
+                  <p class="payment__block-label">Город</p>
+                  <div class="payment__block-field">
+                    <input id="city" name="city" type="text" placeholder="Пример: Москва" required />
+                  </div>
+                </div>
+                <div class="payment__block">
+                  <p class="payment__block-label">Адрес</p>
+                  <div class="payment__block-field">
+                    <input id="address" name="address" type="text" placeholder="Улица, номер дома" required />
+                  </div>
+                </div>
+                <div class="payment__block">
+                  <p class="payment__block-label">Почтовый индекс</p>
+                  <div class="payment__block-field">
+                    <input id="postcode" name="postcode" type="text" placeholder="Почтовый индекс" required />
+                  </div>
+                </div>
+                <div class="payment__block">
+                  <p class="payment__block-label">Комментарий</p>
+                  <div class="payment__block-field">
+                    <textarea id="comment" placeholder="Оставьте комментарий"></textarea>
+                  </div>
+                </div>
+                <div class="payment__block">
+                  <input class="payment__checkbox" type="checkbox" id="agree" />
+                  <label class="payment__label" for="agree">
+                    <span class="payment__checkbox-icon"></span>
+                    <span class="payment__checkbox-text">
+                      Я принимаю условия <button type="button">агентского договора-оферты</button> 
+                      и согласен с обработкой <button class="-js-personalData-modal" type="button">персональных данных</button>
+                    </span>
+                  </label>
+                </div>
+                <div class="payment__block">
+                  <button
+                    class="payment__submit"
+                    type="submit"
+                    id="payBtn"
+                    disabled
+                  >
+                    <span>Оплатить</span>
+                    <span>{{ '%.2f' % ((product.base_price_cents + (product.base_price_cents * product.agent_percent / 100)) / 100) }} ₽ (СБП)</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer__inner">
+          <button class="footer__button -js-personalData-modal" type="button">Политика конфиденциальности </button>
+        </div>
+      </div>
+    </footer>
+
+    <div class="personalData-modal modal" style="z-index: 1010;">
+      <div class="modal__overlay">
+          <div class="modal__wrapper">
+              <h3>ПОЛИТИКА ЗАЩИТЫ ПЕРСОНАЛЬНОЙ ИНФОРМАЦИИ </br> ПОЛЬЗОВАТЕЛЕЙ САЙТА</h3>
+              <div class="modal__content" style="display: flex; flex-direction: column; align-items: center; max-width: 800px; overflow-y: auto;">
+                  <div class="modal__content-block">
+                              <ul>
+                                  <li>
+                                      Настоящим я, далее – «Субъект персональных данных», во исполнение требований Федерального закона от 27.07.2006 г. № 152-ФЗ «О персональных данных» даю свое согласие ООО «Специализированный застройщик «ДОНАЛЬД ТРЕЙД ПЛЮС» (ГК СК МЕРКУРИЙ) на обработку своих персональных данных, переданных (полученных) при посещении сайта https://nordis39.ru/ (далее – «Сайт») на следующих условиях:
+                                  </li>
+                                  <li>
+                                      1. Субъектом персональных данных является посетитель сайта https://nordis39.ru/.
+                                  </li>
+                                  <li>
+                                      2. Под персональными данными понимается любая информация, относящуюся к субъекту персональных данных, в том числе фамилия, имя, отчество, контактные данные (телефон, факс, электронная почта, почтовый адрес), IP-адрес, используемый для посещения Сайта, иные сведения, которые посетитель сайта сообщил в устном или письменном виде.
+                                  </li>
+                                  <li>
+                                      3. Под обработкой персональных данных понимается сбор, запись, систематизация, накопление, уточнение, обновление, изменение, использование, передача, обезличивание, блокирование, удаление, уничтожение, хранение.
+                                  </li>
+                                  <li>
+                                      5. Обработка персональных данных может осуществляться с помощью средств автоматизации и/или без использования средств автоматизации. Обработка персональных данных осуществляется в соответствии с действующим законодательством РФ и внутренними положениями ООО «Специализированный застройщик «ДОНАЛЬД ТРЕЙД ПЛЮС» (ГК СК МЕРКУРИЙ), в т.ч. в том числе в соответствии с Политикой ООО «Специализированный застройщик «ДОНАЛЬД ТРЕЙД ПЛЮС» (ГК СК МЕРКУРИЙ) в отношении защиты и обработки персональных данных, размещённой на сайте: https://nordis39.ru/.
+                                  </li>
+                                  <li>
+                                      6. ООО «Специализированный застройщик «ДОНАЛЬД ТРЕЙД ПЛЮС» (ГК СК МЕРКУРИЙ) принимает необходимые правовые, организационные и технические меры или обеспечивает их принятие для защиты персональных данных от неправомерного или случайного доступа к ним, уничтожения, изменения, блокирования, копирования, предоставления, распространения персональных данных, а также от иных неправомерных действий в отношении персональных данных, а также принимает на себя обязательство сохранения конфиденциальности персональных данных. ООО «Специализированный застройщик «ДОНАЛЬД ТРЕЙД ПЛЮС» (ГК СК МЕРКУРИЙ) вправе передавать персональные данные только тем работникам, подрядчикам и аффилированным лицам, которым эта информация необходима для оказания услуги пользователю или обеспечения функционирования Сайта и сервисов, обеспечивая при этом принятие такими подрядчиками, третьими лицами и аффилированными лицами соответствующих обязательств в части конфиденциальности персональных данных.
+                                  </li>
+                                  <li>
+                                      7. Настоящее согласие на обработку персональных данных вступает в силу с момента отправки посетителем Сайта своей информации, путем использования соответствующих форм, и распространяется на неопределённый срок. Согласие может быть отозвано субъектом персональных данных на основании письменного заявления, направленного ООО «Специализированный застройщик «ДОНАЛЬД ТРЕЙД ПЛЮС» (ГК СК МЕРКУРИЙ) в произвольной форме.
+                                  </li>
+                                  <li>
+                                      8. Субъект персональных данных гарантирует, что информация, предоставленная им, является полной, точной и достоверной; при предоставлении информации не нарушается действующее законодательство Российской Федерации, законные права и интересы третьих лиц, а также то, что вся предоставленная информация заполнена Посетителем в отношении себя лично
+                                  </li>
+                              </ul>
+                  </div>
+              </div>
+
+              <button class="modal__close-button" type="button">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="800px" height="800px" viewBox="0 0 24 24" fill="none">
+                      <path d="M16 8L8 16M8.00001 8L16 16" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+              </button>
+          </div>
+      </div>
+  </div>
+
+<script>
+  const productId = {{ product.id }};
+
+  // ============================
+  // Валидация одного поля
+  // ============================
+  function validateField(input) {
+      const value = input.value.trim();
+      let isValid = true;
+
+      // ---- Проверка телефона с учётом маски ----
+      if (input.id === "phone") {
+          const digits = input.value.replace(/\D/g, ""); // только цифры
+
+          // Телефон РФ должен содержать 11 цифр
+          isValid = digits.length === 11;
+      }
+      else {
+          // Общая проверка — поле не должно быть пустым
+          isValid = value.length > 0;
+      }
+
+      // Снятие старых классов
+      input.classList.remove("input-error", "input-success");
+
+      // Установка подсветки
+      input.classList.add(isValid ? "input-success" : "input-error");
+
+      return isValid;
+  }
+
+  // ============================
+  // Валидация формы целиком
+  // ============================
+  function validateForm() {
+      let isFormValid = true;
+
+      const requiredFields = ["fullname", "phone", "email", "city", "address", "postcode"];
+
+      requiredFields.forEach(id => {
+          const input = document.getElementById(id);
+
+          if (!validateField(input)) {
+              isFormValid = false;
+          }
+      });
+
+      // Проверка чекбокса
+      const agreeChecked = document.getElementById("agree").checked;
+      if (!agreeChecked) isFormValid = false;
+
+      // Активность кнопки
+      document.getElementById("payBtn").disabled = !isFormValid;
+  }
+
+  // ============================
+// Сабмит формы
+// ============================
+const formSubmit = async (e) => {
+    e.preventDefault();
+
+    const payload = {
+        product_id: productId,
+        fullname: document.getElementById('fullname').value,
+        phone: document.getElementById('phone').value,
+        email: document.getElementById('email').value,
+        city: document.getElementById('city').value,
+        address: document.getElementById('address').value,
+        postcode: document.getElementById('postcode').value,
+        comment: document.getElementById('comment').value
+    };
+
+    const res = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    console.log("Tinkoff response:", data);
+
+    if (data.confirmation_url) {
+        window.location.href = data.confirmation_url;  // РЕДИРЕКТ
+    } else {
+        alert("Ошибка при создании платежа");
+    }
+};
+
+
+  // ============================
+  // Привязка событий
+  // ============================
+  document.querySelectorAll("#payForm input").forEach(input => {
+      input.addEventListener("input", () => {
+          setTimeout(validateForm, 0); // ЖДЁМ, пока маска обновит значение
+      });
+  });
+
+  document.getElementById("agree").addEventListener("change", validateForm);
+  document.getElementById("payForm").addEventListener("submit", formSubmit);
+
+</script>
+
+
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/suggestions-jquery@latest/dist/js/jquery.suggestions.min.js"></script>
+    <script>
+      window.DADATA_TOKEN = "{{ DADATA_API_KEY }}";
+    </script>
+    <script src="/static/js/dadata.js"></script>
+    <script src="/static/js/index.js"></script>
+
+  </body>
+</html>

@@ -1,0 +1,520 @@
+/* fonts */
+@font-face {
+  font-family: "Inter";
+  src: local("Inter-Regular"),
+    url("/static/fonts/Inter-Regular.woff") format("woff"),
+    url("/static/fonts/Inter-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: local("Inter-Medium"),
+    url("/static/fonts/Inter-Medium.woff") format("woff"),
+    url("/static/fonts/Inter-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: local("Inter-SemiBold"),
+    url("/static/fonts/Inter-SemiBold.woff") format("woff"),
+    url("/static/fonts/Inter-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: local("Inter-Bold"), url("/static/fonts/Inter-Bold.woff") format("woff"),
+    url("/static/fonts/Inter-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+/*  */
+
+/* reset css */
+html {
+  box-sizing: border-box;
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.main {
+  flex-grow: 1;
+}
+
+*,
+*::after,
+*::before {
+  box-sizing: inherit;
+}
+
+ul,
+ol {
+  padding: 0;
+}
+
+body,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+ul,
+ol,
+li,
+figure,
+figcaption,
+blockquote,
+dl,
+dd {
+  margin: 0;
+}
+
+ul[class] {
+  list-style: none;
+}
+
+ul {
+  list-style: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  text-decoration: none;
+
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0);
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0);
+  -webkit-tap-highlight-color: transparent;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  transition: color .4s ease;
+}
+
+button:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+button:hover{
+  color: #4caf50;
+  transition: color .4s ease;
+}
+
+input {
+  outline: none;
+  border: none;
+}
+/*  */
+
+/* common */
+.container {
+  max-width: 1024px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 10px;
+}
+/*  */
+
+/* header */
+.header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+  padding: 30px 0;
+}
+
+.header__title {
+  font-family: "Inter", sans-serif;
+  font-style: normal;
+  font-weight: 500;
+  font-size: 26px;
+  line-height: 1;
+  color: #000;
+}
+
+.header__price {
+  font-family: "Inter", sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1;
+  color: #000;
+}
+
+.header__price span {
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .header__inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+/* header */
+
+/* payment */
+.payment {
+  padding: 100px 0;
+}
+
+.payment__blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.payment__block-label {
+  font-family: "Inter", sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1;
+  color: #000;
+
+  margin-bottom: 15px;
+}
+
+.payment__block-field {
+  width: 100%;
+}
+
+.payment__block-field input {
+  width: 100%;
+  height: 40px;
+
+  font-family: "Inter", sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1;
+  color: #000;
+
+  padding: 0 20px;
+
+  border: 1px solid #000;
+  border-radius: 10px;
+
+  transition: border-color 0.2s ease;
+}
+
+.payment__block-field input.input-error {
+  border: 2px solid #ff4d4f !important;
+  transition: border-color 0.2s ease;
+}
+
+.payment__block-field input.input-success {
+  border: 2px solid #4caf50 !important;
+  transition: border-color 0.2s ease;
+}
+
+.payment__block-field textarea {
+  font-family: "Inter", sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1;
+  color: #000;
+
+  padding: 20px;
+
+  resize: none;
+  min-height: 120px;
+  width: 100%;
+  border: 1px solid #000;
+  border-radius: 10px;
+}
+
+.payment__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.payment__checkbox {
+  display: none;
+}
+
+.payment__checkbox:checked + label .payment__checkbox-icon::before {
+  opacity: 1;
+  transition: all 0.4s ease;
+}
+
+.payment__checkbox-icon {
+  display: block;
+
+  width: 20px;
+  height: 20px;
+
+  border-radius: 4px;
+
+  border: 1px solid #000;
+
+  position: relative;
+
+  flex-shrink: 0;
+}
+
+.payment__checkbox-icon::before {
+  content: "";
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+
+  width: 12px;
+  height: 12px;
+
+  background: #000;
+  opacity: 0;
+  transition: all 0.4s ease;
+
+  border-radius: 2px;
+}
+
+.payment__checkbox-text {
+  font-family: "Inter", sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.4;
+  color: #000;
+}
+
+.payment__checkbox-text button{
+  text-decoration: underline;
+}
+
+.payment__submit {
+  width: 100%;
+  height: 40px;
+
+  border-radius: 10px;
+  border: 1px solid #000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+
+  font-family: "Inter", sans-serif;
+  font-style: normal;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1;
+  color: #000;
+
+  background: #fff;
+  transition: all 0.4s ease;
+}
+
+.payment__submit:hover {
+  background: #000;
+  color: #fff;
+  transition: all 0.4s ease;
+}
+
+.suggestions-wrapper {
+  font-family: "Inter", sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1;
+  color: #000;
+}
+
+.suggestions-suggestions {
+  border: 1px solid #000;
+  border-radius: 10px;
+  top: 10px;
+  padding: 10px;
+}
+
+@media (max-width: 1024px) {
+  .payment {
+    padding: 60px 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .payment {
+    padding: 40px 0;
+  }
+
+  .payment__checkbox-text {
+    font-size: 14px;
+  }
+
+  .payment__submit {
+    font-size: 14px;
+  }
+}
+/*  */
+
+/* footer */
+.footer {
+  padding: 30px 0;
+}
+
+.footer__button {
+  font-family: "Inter", sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1;
+  color: #000;
+}
+/*  */
+
+/* modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  width: 100%;
+  height: 100%;
+
+  z-index: 1001;
+
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.4s ease;
+}
+
+.modal.-js-visible {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.4s ease;
+}
+
+.modal__overlay {
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.modal__wrapper {
+  max-width: 60vw;
+
+  position: relative;
+
+  background: #f9f6f3;
+  padding: 2vw;
+  border-radius: 0.7vw;
+  margin: 0 10px;
+}
+
+.modal__content {
+  max-height: 540px;
+  padding-right: 10px;
+}
+
+.modal__close-button {
+  width: 40px;
+  height: 40px;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  cursor: pointer;
+
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.modal__close-button svg {
+  width: 100%;
+  height: 100%;
+}
+
+.modal__wrapper h3 {
+  font-family: "Inter", sans-serif;
+  font-style: normal;
+  font-size: 20px;
+  color: #000;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.modal__wrapper li {
+  font-family: "Inter", sans-serif;
+  font-style: normal;
+  font-size: 16px;
+  color: #000;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.modal__wrapper li:not(:last-child) {
+  margin-bottom: 10px;
+}
+
+@media (max-width: 1024px) {
+  .modal__wrapper {
+    max-width: 800px;
+  }
+
+  .modal__wrapper li {
+    font-size: 14px;
+  }
+
+  .modal__wrapper h4 {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 768px) {
+  .modal__wrapper {
+    padding-top: 60px;
+  }
+
+  .modal__wrapper h3 {
+    font-size: 18px;
+  }
+}
