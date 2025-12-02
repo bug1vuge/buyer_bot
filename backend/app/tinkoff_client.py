@@ -27,18 +27,16 @@ def generate_token(params: dict) -> str:
 
 def create_tinkoff_payment(amount_cents: int, order_id: str, email: str = "", phone: str = "") -> dict:
 
+    # Создаем payload (полный)
     payload = {
         "TerminalKey": settings.TINKOFF_TERMINAL_KEY,
         "OrderId": order_id,
         "Amount": amount_cents,
         "Description": f"Оплата заказа №{order_id}",
-
         "SuccessURL": settings.FRONTEND_RETURN_URL,
         "FailURL": settings.FRONTEND_RETURN_URL,
-
         "CustomerEmail": email,
         "CustomerPhone": phone,
-
         "Receipt": {
             "Email": email,
             "Phone": phone,
@@ -54,8 +52,11 @@ def create_tinkoff_payment(amount_cents: int, order_id: str, email: str = "", ph
             }]
         }
     }
+    
+    # --- Token НЕ должен учитывать Receipt ---
+    token_payload = {k: v for k, v in payload.items() if k != "Receipt"}
+    payload["Token"] = generate_token(token_payload)
 
-    payload["Token"] = generate_token(payload)
 
     r = requests.post(TINKOFF_INIT_URL, json=payload, timeout=10)
     r.raise_for_status()
