@@ -19,7 +19,6 @@ def generate_token(params: dict) -> str:
         flat[k] = v
 
     sorted_items = sorted(flat.items(), key=lambda x: x[0])
-
     concat = "".join(str(v) for _, v in sorted_items) + password
 
     return hashlib.sha256(concat.encode()).hexdigest()
@@ -27,7 +26,6 @@ def generate_token(params: dict) -> str:
 
 def create_tinkoff_payment(amount_cents: int, order_id: str, email: str = "", phone: str = "") -> dict:
 
-    # Создаем payload (полный)
     payload = {
         "TerminalKey": settings.TINKOFF_TERMINAL_KEY,
         "OrderId": order_id,
@@ -36,35 +34,17 @@ def create_tinkoff_payment(amount_cents: int, order_id: str, email: str = "", ph
         "SuccessURL": settings.FRONTEND_RETURN_URL,
         "FailURL": settings.FRONTEND_RETURN_URL,
         "CustomerEmail": email,
-        "CustomerPhone": phone,
-        "Receipt": {
-            "Email": email,
-            "Phone": phone,
-            "Taxation": "usn_income",
-            "Items": [{
-                "Name": f"Товар {order_id}",
-                "Price": amount_cents,
-                "Quantity": 1,
-                "Amount": amount_cents,
-                "PaymentMethod": "full_payment",
-                "PaymentObject": "service",
-                "Tax": "none"
-            }]
-        }
+        "CustomerPhone": phone
     }
-    
-    # --- Token НЕ должен учитывать Receipt ---
-    token_payload = {k: v for k, v in payload.items() if k != "Receipt"}
-    payload["Token"] = generate_token(token_payload)
 
+    # Генерация токена
+    payload["Token"] = generate_token(payload)
 
     r = requests.post(TINKOFF_INIT_URL, json=payload, timeout=10)
     r.raise_for_status()
 
     data = r.json()
 
-    # if not data.get("Success"):
-    #     raise Exception(data.get("Message") or data)
     if not data.get("Success"):
         print("\n🔥 RAW TINKOFF ERROR:")
         print(data)
