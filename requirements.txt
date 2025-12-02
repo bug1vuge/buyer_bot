@@ -14,7 +14,6 @@ aiosmtplib
 wkhtmltopdf-py
 python-dateutil
 PyYAML
-python -m uvicorn app.main:app --reload --port 8000
 aiogram==3.0.0b7
 python-dotenv
 requests
