@@ -18,7 +18,7 @@ def generate_token(params: dict) -> str:
             continue
         flat[k] = v
 
-    sorted_items = sorted(flat.items(), key=lambda x: x[0].lower())
+    sorted_items = sorted(flat.items(), key=lambda x: x[0])
 
     concat = "".join(str(v) for _, v in sorted_items) + password
 
