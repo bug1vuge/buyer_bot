@@ -11,7 +11,6 @@ alembic
 python-multipart
 celery[redis]
 aiosmtplib
-wkhtmltopdf-py
 python-dateutil
 PyYAML
 aiogram==3.0.0b7
