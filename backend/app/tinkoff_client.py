@@ -65,6 +65,7 @@ def generate_webhook_token(payload: Dict[str, Any]) -> str:
 # ---------------------------
 TINKOFF_INIT_URL = f"{settings.TINKOFF_API_URL.rstrip('/')}/Init"
 TINKOFF_STATE_URL = f"{settings.TINKOFF_API_URL.rstrip('/')}/GetState"
+TINKOFF_SBP_TEST_URL = "https://securepay.tinkoff.ru/v2/SbpPayTest"  # исправленный URL
 
 
 def create_tinkoff_payment(
@@ -115,7 +116,7 @@ def create_tinkoff_sbp_test_payment(order_id: str) -> Dict[str, str]:
     order_id <= 20 символов
     """
     payment_id = order_id[:20]
-    token_str = f"{settings.TINKOFF_TERMINAL_KEY}{payment_id}{settings.TINKOFF_PASSWORD}"
+    token_str = f"{payment_id}{settings.TINKOFF_TERMINAL_KEY}{settings.TINKOFF_PASSWORD}"
     token = hashlib.sha256(token_str.encode()).hexdigest()
 
     payload = {
@@ -126,7 +127,7 @@ def create_tinkoff_sbp_test_payment(order_id: str) -> Dict[str, str]:
         "IsRejected": False,
     }
 
-    r = requests.post(settings.TINKOFF_API_URL, json=payload, timeout=10)
+    r = requests.post(TINKOFF_SBP_TEST_URL, json=payload, timeout=15)  # исправлено на SBP Test URL
     r.raise_for_status()
     data = r.json()
 
