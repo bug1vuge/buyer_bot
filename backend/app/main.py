@@ -111,7 +111,6 @@ def api_create_order(payload: CreateOrderIn):
             customer_address=payload.address,
 
             comment=payload.comment,
-
             status="created",
         )
 
@@ -140,7 +139,7 @@ def api_create_order(payload: CreateOrderIn):
             session.commit()
             raise HTTPException(status_code=502, detail="Tinkoff did not return payment_url")
 
-        # save Tinkoff payment id (reuse column)
+        # reusing old field yookassa_payment_id (as requested)
         if payment_id:
             order.yookassa_payment_id = str(payment_id)
 
@@ -182,6 +181,11 @@ def pay_page(request: Request, product_id: int):
 @app.post("/api/tinkoff/webhook")
 async def tinkoff_webhook(request: Request):
     payload = await request.json()
+
+    print("\n🔥 Incoming Tinkoff Webhook:")
+    print(payload)
+    print("🔥 END\n")
+
     received_token = payload.get("Token")
 
     # Проверка подписи
@@ -196,16 +200,19 @@ async def tinkoff_webhook(request: Request):
         status = payload.get("Status")
 
         order = None
+
+        # Найти по payment_id (сохраняем в yookassa_payment_id)
         if payment_id:
             order = session.query(Order).filter(Order.yookassa_payment_id == str(payment_id)).first()
 
+        # fallback: поиск по order_id
         if not order and order_id:
             order = session.query(Order).filter(Order.order_id_str == str(order_id)).first()
 
         if not order:
             return JSONResponse({"ok": False, "detail": "Order not found"})
 
-        # Status: CONFIRMED, AUTHORIZED, REJECTED, CANCELED, REVERSED …
+        # Normalize status
         s = (status or "").lower()
 
         if s in ("confirmed", "completed", "authorized", "success"):
