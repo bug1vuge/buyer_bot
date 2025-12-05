@@ -125,25 +125,25 @@ def api_create_order(payload: CreateOrderIn):
         # 5. Создать тестовую SBP-сессию Тинькофф
         try:
             from .tinkoff_client import create_tinkoff_sbp_test_payment
-
             tinkoff_resp = create_tinkoff_sbp_test_payment(order_id=order.order_id_str)
         except Exception as e:
             order.status = "error"
             session.commit()
             raise HTTPException(status_code=502, detail=f"Tinkoff payment error: {e}")
-
+        
         payment_url = tinkoff_resp.get("payment_url")
         payment_id = tinkoff_resp.get("payment_id")
-
+        
         if not payment_url:
             order.status = "error"
             session.commit()
             raise HTTPException(status_code=502, detail="Tinkoff did not return payment_url")
-
+        
         # 6. Сохраняем PaymentId и помечаем заказ как pending
         order.yookassa_payment_id = str(payment_id)
         order.status = "pending"
         session.commit()
+
 
         # 7. Вернуть клиенту ссылку для оплаты
         return CreateOrderOut(order_id=order.order_id_str, confirmation_url=payment_url)
