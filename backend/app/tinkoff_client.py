@@ -1,44 +1,49 @@
 # app/tinkoff_client.py
-import requests
 import hashlib
+import requests
 from .config import settings
 
 TINKOFF_INIT_URL = f"{settings.TINKOFF_API_URL}/Init"
 TINKOFF_STATE_URL = f"{settings.TINKOFF_API_URL}/GetState"
 
 
-def generate_token(params: dict) -> str:
-    password = settings.TINKOFF_PASSWORD
-
-    flat = {}
-    for k, v in params.items():
-        if k in ("Token", "Receipt"):
-            continue
-        if isinstance(v, dict):
-            continue
-        flat[k] = v
-
-    sorted_items = sorted(flat.items(), key=lambda x: x[0])
-    concat = "".join(str(v) for _, v in sorted_items) + password
-
+# ==========================
+#   TOKEN GENERATION
+# ==========================
+def generate_init_token(amount: int, order_id: str) -> str:
+    """
+    Token = SHA256(Amount + OrderId + TerminalKey + Password)
+    """
+    concat = f"{amount}{order_id}{settings.TINKOFF_TERMINAL_KEY}{settings.TINKOFF_PASSWORD}"
     return hashlib.sha256(concat.encode()).hexdigest()
 
 
-def create_tinkoff_payment(amount_cents: int, order_id: str, email: str = "", phone: str = "") -> dict:
+def generate_state_token(payment_id: str) -> str:
+    """
+    Token = SHA256(PaymentId + TerminalKey + Password)
+    """
+    concat = f"{payment_id}{settings.TINKOFF_TERMINAL_KEY}{settings.TINKOFF_PASSWORD}"
+    return hashlib.sha256(concat.encode()).hexdigest()
+
+
+# ==========================
+#   CREATE PAYMENT (SBP)
+# ==========================
+def create_tinkoff_payment(amount_cents: int, order_id: str) -> dict:
+    """
+    Создание платежа по API Tinkoff для СБП.
+    Работает в DEMO и PROD.
+    """
 
     payload = {
         "TerminalKey": settings.TINKOFF_TERMINAL_KEY,
         "OrderId": order_id,
         "Amount": amount_cents,
-        "Description": f"Оплата заказа №{order_id}",
-        "SuccessURL": settings.FRONTEND_RETURN_URL,
-        "FailURL": settings.FRONTEND_RETURN_URL,
-        "CustomerEmail": email,
-        "CustomerPhone": phone
+        "PayType": "SBP",   # обязательно для СБП
     }
 
-    # Генерация токена
-    payload["Token"] = generate_token(payload)
+    # Корректный токен
+    payload["Token"] = generate_init_token(amount_cents, order_id)
 
     r = requests.post(TINKOFF_INIT_URL, json=payload, timeout=10)
     r.raise_for_status()
@@ -49,20 +54,27 @@ def create_tinkoff_payment(amount_cents: int, order_id: str, email: str = "", ph
         print("\n🔥 RAW TINKOFF ERROR:")
         print(data)
         print("🔥 END RAW TINKOFF ERROR\n")
-        raise Exception(data.get("Message") or data)
+        raise Exception(data.get("Message") or "Ошибка Tinkoff Init")
+
+    # В некоторых режимах возвращается PaymentURL, в SBP — ConfirmationURL
+    payment_url = data.get("PaymentURL") or data.get("ConfirmationURL")
 
     return {
-        "payment_url": data["PaymentURL"],
+        "payment_url": payment_url,
         "payment_id": data["PaymentId"]
     }
 
 
-def get_tinkoff_payment_state(payment_id: str):
+# ==========================
+#   CHECK PAYMENT STATE
+# ==========================
+def get_tinkoff_payment_state(payment_id: str) -> dict:
+
     payload = {
         "TerminalKey": settings.TINKOFF_TERMINAL_KEY,
-        "PaymentId": payment_id
+        "PaymentId": payment_id,
+        "Token": generate_state_token(payment_id)
     }
-    payload["Token"] = generate_token(payload)
 
     r = requests.post(TINKOFF_STATE_URL, json=payload, timeout=10)
     r.raise_for_status()
