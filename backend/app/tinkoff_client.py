@@ -23,84 +23,73 @@ def generate_webhook_token(payload: dict, secret_key: str = None) -> str:
     token = hashlib.sha256(concat_values.encode('utf-8')).hexdigest()
     return token
 
+def _sha256_hex(s: str) -> str:
+    return hashlib.sha256(s.encode('utf-8')).hexdigest()
 # ==============================
 # Инициализация платежа Init
 # ==============================
 def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: str):
+    """
+    amount_cents: сумма в копейках (int, например 1000 => 10.00 руб)
+    order_id: ваш OrderId (строка)
+    email, phone: данные покупателя
+    """
     terminal_key = settings.TINKOFF_TERMINAL_KEY
-    secret_key = settings.TINKOFF_PASSWORD
+    secret_key = settings.TINKOFF_PASSWORD  # SecretKey / Password в терминах Tinkoff
 
-    values = {
-        'Amount': str(amount_cents),
-        'OrderId': order_id,
-        'TerminalKey': terminal_key,
-        'Password': secret_key
-    }
+    # ВАЖНО: строковый вид полей должен соответствовать документации (Amount — число в копейках без .00)
+    # Точный порядок для Init (по документации/практике): Amount + Description + OrderId + Password + TerminalKey
+    description = f"Оплата заказа {order_id}"
+    amount_str = str(int(amount_cents))  # убедиться, что целое число
 
-    concatenated_values = ''.join([values[key] for key in values.keys()])
-    token = hashlib.sha256(concatenated_values.encode('utf-8')).hexdigest()
+    concat = amount_str + description + str(order_id) + secret_key + terminal_key
+    token = _sha256_hex(concat)
 
     payload = {
-        'TerminalKey': terminal_key,
-        'OrderId': order_id,
-        'Amount': amount_cents,
-        'Token': token,
-        'Description': f"Оплата заказа {order_id}",
-        'DATA': {
-            'Email': email,
-            'Phone': phone
-        },
-        'PayType': "O",      # одноразовый платеж
-        'Recurrent': "N",    # не рекуррент
-        # Можно добавить SuccessURL и FailURL если нужно
+        "TerminalKey": terminal_key,
+        "Amount": int(amount_cents),
+        "OrderId": str(order_id),
+        "Description": description,
+        "Token": token,
+        "DATA": {"Email": email, "Phone": phone},
+        "PayType": "O",
+        "Recurrent": "N",
     }
 
     url = "https://securepay.tinkoff.ru/v2/Init"
-    response = requests.post(url, json=payload)
-    logger.debug("Tinkoff Init response: %s", response.text)
+    resp = requests.post(url, json=payload, timeout=15)
+    logger.debug("Tinkoff Init request payload (no secret): %s", {k: v for k,v in payload.items() if k != 'Token'})
+    logger.debug("Tinkoff Init response: %s", resp.text)
 
-    data = response.json()
-    if not data.get('Success'):
+    data = resp.json()
+    if not data.get("Success"):
         raise Exception(f"Tinkoff Init error: {data.get('Message')} {data.get('Details')}")
-
-    return {
-        "payment_url": data['PaymentURL'],
-        "payment_id": data['PaymentId']
-    }
+    return {"payment_url": data.get("PaymentURL"), "payment_id": data.get("PaymentId")}
 
 # ==============================
 # Проверка статуса платежа CheckOrder
 # ==============================
 def check_order(order_id: str):
+    """
+    Проверка статуса платежа (CheckOrder/GetState).
+    Подпись: OrderId + Password + TerminalKey (в этом порядке).
+    """
     terminal_key = settings.TINKOFF_TERMINAL_KEY
     secret_key = settings.TINKOFF_PASSWORD
 
-    values = {
-        'OrderId': order_id,
-        'TerminalKey': terminal_key,
-        'Password': secret_key
-    }
+    concat = str(order_id) + secret_key + terminal_key
+    token = _sha256_hex(concat)
 
-    concatenated_values = ''.join([values[key] for key in values.keys()])
-    token = hashlib.sha256(concatenated_values.encode('utf-8')).hexdigest()
-
-    payload = {
-        'TerminalKey': terminal_key,
-        'OrderId': order_id,
-        'Token': token
-    }
-
+    payload = {"TerminalKey": terminal_key, "OrderId": str(order_id), "Token": token}
     url = "https://securepay.tinkoff.ru/v2/CheckOrder"
-    response = requests.post(url, json=payload)
-    logger.debug("Tinkoff CheckOrder response: %s", response.text)
+    resp = requests.post(url, json=payload, timeout=10)
+    logger.debug("Tinkoff CheckOrder response: %s", resp.text)
 
-    data = response.json()
-    if not data.get('Success'):
+    data = resp.json()
+    if not data.get("Success"):
         return {"status": False, "message": f"{data.get('Message')} {data.get('Details')}"}
-
-    payments = data.get('Payments', [])
+    payments = data.get("Payments", [])
     if not payments:
         return {"status": False, "message": "Нет платежей в заказе"}
-
     payment = payments[0]
-    return {"status": payment.get('Success'), "message": payment.get('Message'), "status_payment": payment.get('Status')}
+    return {"status": payment.get("Success"), "message": payment.get("Message"), "status_payment": payment.get("Status")}
