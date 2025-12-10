@@ -14,7 +14,7 @@ def generate_webhook_token(payload: dict, secret_key: str = None) -> str:
     """
     from .config import settings
     if not secret_key:
-        secret_key = settings.TERMINALPASSWORD
+        secret_key = settings.TINKOFF_PASSWORD
 
     # Ключи в payload сортируются по алфавиту
     keys = sorted([k for k in payload.keys() if k.lower() != 'token'])
@@ -27,8 +27,8 @@ def generate_webhook_token(payload: dict, secret_key: str = None) -> str:
 # Инициализация платежа Init
 # ==============================
 def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: str):
-    terminal_key = settings.TERMINALKEY
-    secret_key = settings.TERMINALPASSWORD
+    terminal_key = settings.TINKOFF_TERMINAL_KEY
+    secret_key = settings.TINKOFF_PASSWORD
 
     values = {
         'Amount': str(amount_cents),
@@ -72,8 +72,8 @@ def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: 
 # Проверка статуса платежа CheckOrder
 # ==============================
 def check_order(order_id: str):
-    terminal_key = settings.TERMINALKEY
-    secret_key = settings.TERMINALPASSWORD
+    terminal_key = settings.TINKOFF_TERMINAL_KEY
+    secret_key = settings.TINKOFF_PASSWORD
 
     values = {
         'OrderId': order_id,
