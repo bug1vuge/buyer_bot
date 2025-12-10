@@ -56,6 +56,13 @@ def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: 
         "Recurrent": "N",
     }
 
+    logger.error("TK=%s SK=%s", terminal_key, secret_key)
+
+    logger.error("Concat for token: %s", concat)
+    logger.error("Token: %s", token)
+    logger.error("Payload: %s", payload)
+
+
     url = "https://securepay.tinkoff.ru/v2/Init"
     resp = requests.post(url, json=payload, timeout=15)
     logger.debug("Tinkoff Init request payload (no secret): %s", {k: v for k,v in payload.items() if k != 'Token'})
