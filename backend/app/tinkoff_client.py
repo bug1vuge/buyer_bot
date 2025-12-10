@@ -3,7 +3,6 @@ import requests
 from typing import Any, Dict, List
 from .config import settings
 
-
 # ---------------------------
 # Helpers
 # ---------------------------
@@ -32,7 +31,7 @@ def _flatten_for_signature(obj: Any) -> List[str]:
 # Token generation
 # ---------------------------
 def generate_init_token(payload: Dict[str, Any]) -> str:
-    """Правильный токен для Init карт: SHA256(sorted(values) + Password)."""
+    """Токен для Init карт: SHA256(sorted(values) + Password)"""
     items = sorted((k, v) for k, v in payload.items() if k != "Token")
     pieces: List[str] = []
 
@@ -43,17 +42,14 @@ def generate_init_token(payload: Dict[str, Any]) -> str:
     return hashlib.sha256(concat.encode()).hexdigest()
 
 
-def generate_state_token(payment_id: str) -> str:
-    concat = f"{payment_id}{settings.TINKOFF_TERMINAL_KEY}{settings.TINKOFF_PASSWORD}"
+def generate_check_order_token(order_id: str) -> str:
+    """Токен для CheckOrder: SHA256(OrderId + Password + TerminalKey)"""
+    concat = f"{order_id}{settings.TINKOFF_PASSWORD}{settings.TINKOFF_TERMINAL_KEY}"
     return hashlib.sha256(concat.encode()).hexdigest()
 
 
 def generate_webhook_token(payload: Dict[str, Any]) -> str:
-    flat = {}
-    for k, v in payload.items():
-        if k == "Token":
-            continue
-        flat[k] = v
+    flat = {k: v for k, v in payload.items() if k != "Token"}
 
     items = sorted(flat.items(), key=lambda x: x[0])
     pieces = []
@@ -68,7 +64,7 @@ def generate_webhook_token(payload: Dict[str, Any]) -> str:
 # URLs
 # ---------------------------
 TINKOFF_INIT_URL = f"{settings.TINKOFF_API_URL.rstrip('/')}/Init"
-TINKOFF_STATE_URL = f"{settings.TINKOFF_API_URL.rstrip('/')}/GetState"
+TINKOFF_CHECK_URL = f"{settings.TINKOFF_API_URL.rstrip('/')}/CheckOrder"
 
 
 # ---------------------------
@@ -113,15 +109,15 @@ def create_tinkoff_payment(
 
 
 # ---------------------------
-# Get state
+# Check order
 # ---------------------------
-def get_tinkoff_payment_state(payment_id: str) -> Dict[str, Any]:
+def check_order(order_id: str) -> Dict[str, Any]:
+    """Проверка платежа через CheckOrder"""
     payload = {
         "TerminalKey": settings.TINKOFF_TERMINAL_KEY,
-        "PaymentId": payment_id,
-        "Token": generate_state_token(payment_id),
+        "OrderId": order_id,
+        "Token": generate_check_order_token(order_id),
     }
-
-    r = requests.post(TINKOFF_STATE_URL, json=payload, timeout=15)
+    r = requests.post(TINKOFF_CHECK_URL, json=payload, timeout=15)
     r.raise_for_status()
     return r.json()
