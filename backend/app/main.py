@@ -11,32 +11,26 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import os
 from datetime import datetime, timezone
-
 from .tinkoff_client import create_tinkoff_payment, check_order, generate_webhook_token
 
-# ===========================
 # DATABASE
-# ===========================
 DATABASE_URL = settings.DATABASE_URL
 engine = create_engine(DATABASE_URL, future=True)
 SessionLocal = sessionmaker(bind=engine)
 Base.metadata.create_all(bind=engine)
 
-# ===========================
 # FASTAPI
-# ===========================
 app = FastAPI(title="Payment backend")
-
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
 
-# ===========================
+# ==========================
 # PRODUCT API
-# ===========================
+# ==========================
 class CreateProductIn(BaseModel):
     title: str
-    base_price: int  # рубли
-    percent: int     # агентский %
+    base_price: int
+    percent: int
 
 class CreateProductOut(BaseModel):
     product_id: int
@@ -47,7 +41,7 @@ def create_product(payload: CreateProductIn):
     try:
         product = Product(
             title=payload.title,
-            base_price_cents=payload.base_price * 100,
+            base_price_cents=payload.base_price*100,
             agent_percent=payload.percent
         )
         session.add(product)
@@ -57,9 +51,9 @@ def create_product(payload: CreateProductIn):
     finally:
         session.close()
 
-# ===========================
+# ==========================
 # CREATE ORDER + INIT PAYMENT
-# ===========================
+# ==========================
 @app.post("/api/orders/create", response_model=CreateOrderOut)
 def api_create_order(payload: CreateOrderIn):
     session = SessionLocal()
@@ -97,32 +91,25 @@ def api_create_order(payload: CreateOrderIn):
         session.commit()
         session.refresh(order)
 
-        try:
-            tinkoff_resp = create_tinkoff_payment(
-                amount_cents=order.total_amount_cents,
-                order_id=order.order_id_str,
-                email=order.customer_email,
-                phone=order.customer_phone,
-            )
-        except Exception as e:
-            order.status = "error"
-            session.commit()
-            raise HTTPException(status_code=502, detail=f"Tinkoff payment error: {e}")
+        # Tinkoff Init
+        tinkoff_resp = create_tinkoff_payment(
+            amount_cents=order.total_amount_cents,
+            order_id=order.order_id_str,
+            email=order.customer_email,
+            phone=order.customer_phone
+        )
 
-        payment_url = tinkoff_resp["payment_url"]
-        payment_id = tinkoff_resp["payment_id"]
-
-        order.yookassa_payment_id = str(payment_id)
+        order.yookassa_payment_id = str(tinkoff_resp['payment_id'])
         order.status = "pending"
         session.commit()
 
-        return CreateOrderOut(order_id=order.order_id_str, confirmation_url=payment_url)
+        return CreateOrderOut(order_id=order.order_id_str, confirmation_url=tinkoff_resp['payment_url'])
     finally:
         session.close()
 
-# ===========================
+# ==========================
 # PAYMENT PAGE
-# ===========================
+# ==========================
 @app.get("/pay/{product_id}", response_class=HTMLResponse)
 def pay_page(request: Request, product_id: int):
     session = SessionLocal()
@@ -136,9 +123,9 @@ def pay_page(request: Request, product_id: int):
         {"request": request, "product": product, "BASE_URL": settings.BASE_URL, "DADATA_API_KEY": settings.DADATA_API_KEY},
     )
 
-# ===========================
+# ==========================
 # TINKOFF WEBHOOK
-# ===========================
+# ==========================
 @app.post("/api/tinkoff/webhook")
 async def tinkoff_webhook(request: Request):
     payload = await request.json()
@@ -173,8 +160,8 @@ async def tinkoff_webhook(request: Request):
     finally:
         session.close()
 
-# ===========================
+# ==========================
 # RUN
-# ===========================
+# ==========================
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
