@@ -2,8 +2,26 @@ import requests
 import hashlib
 from .config import settings
 import logging
+import json
 
 logger = logging.getLogger(__name__)
+
+def generate_webhook_token(payload: dict, secret_key: str = None) -> str:
+    """
+    Генерация токена для проверки webhook от Tinkoff.
+    payload: dict - пришедший JSON от Tinkoff
+    secret_key: str - ваш секретный ключ терминала (если не передан, берется из settings)
+    """
+    from .config import settings
+    if not secret_key:
+        secret_key = settings.TERMINALPASSWORD
+
+    # Ключи в payload сортируются по алфавиту
+    keys = sorted([k for k in payload.keys() if k.lower() != 'token'])
+    concat_values = ''.join([str(payload[k]) for k in keys])
+    concat_values += secret_key
+    token = hashlib.sha256(concat_values.encode('utf-8')).hexdigest()
+    return token
 
 # ==============================
 # Инициализация платежа Init
