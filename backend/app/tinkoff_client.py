@@ -77,7 +77,6 @@ def create_tinkoff_payment(
     phone: str = "",
 ) -> Dict[str, Any]:
     """Создаёт платеж картой через Init + PaymentURL."""
-
     payload: Dict[str, Any] = {
         "TerminalKey": settings.TINKOFF_TERMINAL_KEY,
         "OrderId": order_id,
@@ -92,7 +91,6 @@ def create_tinkoff_payment(
     if phone:
         payload["CustomerPhone"] = phone
 
-    # Генерация токена
     payload["Token"] = generate_init_token(payload)
 
     r = requests.post(TINKOFF_INIT_URL, json=payload, timeout=15)
