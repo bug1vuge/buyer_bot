@@ -14,20 +14,52 @@ from datetime import datetime, timezone
 
 from .tinkoff_client import create_tinkoff_payment, check_order, generate_webhook_token
 
+# ===========================
 # DATABASE
+# ===========================
 DATABASE_URL = settings.DATABASE_URL
 engine = create_engine(DATABASE_URL, future=True)
 SessionLocal = sessionmaker(bind=engine)
 Base.metadata.create_all(bind=engine)
 
+# ===========================
 # FASTAPI
+# ===========================
 app = FastAPI(title="Payment backend")
 
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
 
+# ===========================
+# PRODUCT API
+# ===========================
+class CreateProductIn(BaseModel):
+    title: str
+    base_price: int  # рубли
+    percent: int     # агентский %
 
+class CreateProductOut(BaseModel):
+    product_id: int
+
+@app.post("/api/products/create", response_model=CreateProductOut)
+def create_product(payload: CreateProductIn):
+    session = SessionLocal()
+    try:
+        product = Product(
+            title=payload.title,
+            base_price_cents=payload.base_price * 100,
+            agent_percent=payload.percent
+        )
+        session.add(product)
+        session.commit()
+        session.refresh(product)
+        return CreateProductOut(product_id=product.id)
+    finally:
+        session.close()
+
+# ===========================
 # CREATE ORDER + INIT PAYMENT
+# ===========================
 @app.post("/api/orders/create", response_model=CreateOrderOut)
 def api_create_order(payload: CreateOrderIn):
     session = SessionLocal()
@@ -88,8 +120,9 @@ def api_create_order(payload: CreateOrderIn):
     finally:
         session.close()
 
-
+# ===========================
 # PAYMENT PAGE
+# ===========================
 @app.get("/pay/{product_id}", response_class=HTMLResponse)
 def pay_page(request: Request, product_id: int):
     session = SessionLocal()
@@ -103,8 +136,9 @@ def pay_page(request: Request, product_id: int):
         {"request": request, "product": product, "BASE_URL": settings.BASE_URL, "DADATA_API_KEY": settings.DADATA_API_KEY},
     )
 
-
+# ===========================
 # TINKOFF WEBHOOK
+# ===========================
 @app.post("/api/tinkoff/webhook")
 async def tinkoff_webhook(request: Request):
     payload = await request.json()
@@ -139,6 +173,8 @@ async def tinkoff_webhook(request: Request):
     finally:
         session.close()
 
-
+# ===========================
+# RUN
+# ===========================
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
