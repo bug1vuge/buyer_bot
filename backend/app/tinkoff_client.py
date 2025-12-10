@@ -22,7 +22,7 @@ def _flatten_for_signature(obj: Any) -> List[str]:
 
     if isinstance(obj, (list, tuple)):
         for item in obj:
-            result.extend(_flatten_for_signature[item])
+            result.extend(_flatten_for_signature(item))
         return result
 
     return [str(obj)]
