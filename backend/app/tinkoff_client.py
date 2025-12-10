@@ -1,121 +1,88 @@
-import hashlib
 import requests
-from typing import Any, Dict, List
+import hashlib
 from .config import settings
+import logging
 
-# ---------------------------
-# Helpers
-# ---------------------------
-def _flatten_for_signature(obj: Any) -> List[str]:
-    """Рекурсивно сплющивает объект в список строк для токена."""
-    result: List[str] = []
+logger = logging.getLogger(__name__)
 
-    if obj is None:
-        return [""]
+# ==============================
+# Инициализация платежа Init
+# ==============================
+def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: str):
+    terminal_key = settings.TERMINALKEY
+    secret_key = settings.TERMINALPASSWORD
 
-    if isinstance(obj, dict):
-        for key in sorted(obj.keys()):
-            val = obj[key]
-            result.extend(_flatten_for_signature(val))
-        return result
-
-    if isinstance(obj, (list, tuple)):
-        for item in obj:
-            result.extend(_flatten_for_signature(item))
-        return result
-
-    return [str(obj)]
-
-
-# ---------------------------
-# Token generation
-# ---------------------------
-def generate_init_token(payload: Dict[str, Any]) -> str:
-    """Токен для Init карт: SHA256(sorted(values) + Password)"""
-    items = sorted((k, v) for k, v in payload.items() if k != "Token")
-    pieces: List[str] = []
-
-    for _, v in items:
-        pieces.extend(_flatten_for_signature(v))
-
-    concat = "".join("" if p is None else p for p in pieces) + settings.TINKOFF_PASSWORD
-    return hashlib.sha256(concat.encode()).hexdigest()
-
-
-def generate_check_order_token(order_id: str) -> str:
-    """Токен для CheckOrder: SHA256(OrderId + Password + TerminalKey)"""
-    concat = f"{order_id}{settings.TINKOFF_PASSWORD}{settings.TINKOFF_TERMINAL_KEY}"
-    return hashlib.sha256(concat.encode()).hexdigest()
-
-
-def generate_webhook_token(payload: Dict[str, Any]) -> str:
-    flat = {k: v for k, v in payload.items() if k != "Token"}
-
-    items = sorted(flat.items(), key=lambda x: x[0])
-    pieces = []
-    for _, v in items:
-        pieces.extend(_flatten_for_signature(v))
-
-    concat = "".join("" if p is None else p for p in pieces) + settings.TINKOFF_PASSWORD
-    return hashlib.sha256(concat.encode()).hexdigest()
-
-
-# ---------------------------
-# URLs
-# ---------------------------
-TINKOFF_INIT_URL = f"{settings.TINKOFF_API_URL.rstrip('/')}/Init"
-TINKOFF_CHECK_URL = f"{settings.TINKOFF_API_URL.rstrip('/')}/CheckOrder"
-
-
-# ---------------------------
-# Create card payment
-# ---------------------------
-def create_tinkoff_payment(
-    amount_cents: int,
-    order_id: str,
-    email: str = "",
-    phone: str = "",
-) -> Dict[str, Any]:
-    """Создаёт платеж картой через Init + PaymentURL."""
-    payload: Dict[str, Any] = {
-        "TerminalKey": settings.TINKOFF_TERMINAL_KEY,
-        "OrderId": order_id,
-        "Amount": amount_cents,
-        "Description": f"Оплата заказа {order_id}",
-        "SuccessURL": f"{settings.BASE_URL}/pay/success",
-        "FailURL": f"{settings.BASE_URL}/pay/failed",
+    values = {
+        'Amount': str(amount_cents),
+        'OrderId': order_id,
+        'TerminalKey': terminal_key,
+        'Password': secret_key
     }
 
-    if email:
-        payload["CustomerEmail"] = email
-    if phone:
-        payload["CustomerPhone"] = phone
+    concatenated_values = ''.join([values[key] for key in values.keys()])
+    token = hashlib.sha256(concatenated_values.encode('utf-8')).hexdigest()
 
-    payload["Token"] = generate_init_token(payload)
+    payload = {
+        'TerminalKey': terminal_key,
+        'OrderId': order_id,
+        'Amount': amount_cents,
+        'Token': token,
+        'Description': f"Оплата заказа {order_id}",
+        'DATA': {
+            'Email': email,
+            'Phone': phone
+        },
+        'PayType': "O",      # одноразовый платеж
+        'Recurrent': "N",    # не рекуррент
+        # Можно добавить SuccessURL и FailURL если нужно
+    }
 
-    r = requests.post(TINKOFF_INIT_URL, json=payload, timeout=15)
-    r.raise_for_status()
-    data = r.json()
+    url = "https://securepay.tinkoff.ru/v2/Init"
+    response = requests.post(url, json=payload)
+    logger.debug("Tinkoff Init response: %s", response.text)
 
-    if not data.get("Success"):
-        raise Exception(f"Tinkoff Init returned error: {data}")
+    data = response.json()
+    if not data.get('Success'):
+        raise Exception(f"Tinkoff Init error: {data.get('Message')} {data.get('Details')}")
 
     return {
-        "payment_url": data.get("PaymentURL") or data.get("ConfirmationURL"),
-        "payment_id": data.get("PaymentId"),
+        "payment_url": data['PaymentURL'],
+        "payment_id": data['PaymentId']
     }
 
+# ==============================
+# Проверка статуса платежа CheckOrder
+# ==============================
+def check_order(order_id: str):
+    terminal_key = settings.TERMINALKEY
+    secret_key = settings.TERMINALPASSWORD
 
-# ---------------------------
-# Check order
-# ---------------------------
-def check_order(order_id: str) -> Dict[str, Any]:
-    """Проверка платежа через CheckOrder"""
+    values = {
+        'OrderId': order_id,
+        'TerminalKey': terminal_key,
+        'Password': secret_key
+    }
+
+    concatenated_values = ''.join([values[key] for key in values.keys()])
+    token = hashlib.sha256(concatenated_values.encode('utf-8')).hexdigest()
+
     payload = {
-        "TerminalKey": settings.TINKOFF_TERMINAL_KEY,
-        "OrderId": order_id,
-        "Token": generate_check_order_token(order_id),
+        'TerminalKey': terminal_key,
+        'OrderId': order_id,
+        'Token': token
     }
-    r = requests.post(TINKOFF_CHECK_URL, json=payload, timeout=15)
-    r.raise_for_status()
-    return r.json()
+
+    url = "https://securepay.tinkoff.ru/v2/CheckOrder"
+    response = requests.post(url, json=payload)
+    logger.debug("Tinkoff CheckOrder response: %s", response.text)
+
+    data = response.json()
+    if not data.get('Success'):
+        return {"status": False, "message": f"{data.get('Message')} {data.get('Details')}"}
+
+    payments = data.get('Payments', [])
+    if not payments:
+        return {"status": False, "message": "Нет платежей в заказе"}
+
+    payment = payments[0]
+    return {"status": payment.get('Success'), "message": payment.get('Message'), "status_payment": payment.get('Status')}
