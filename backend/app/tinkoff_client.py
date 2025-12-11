@@ -56,6 +56,8 @@ def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: 
         "Recurrent": "N",
     }
 
+    logger.error(payload)
+
     logger.error("TK=%s SK=%s", terminal_key, secret_key)
 
     logger.error("Concat for token: %s", concat)
