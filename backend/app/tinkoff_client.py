@@ -6,22 +6,32 @@ import json
 
 logger = logging.getLogger(__name__)
 
-def generate_webhook_token(payload: dict, secret_key: str = None) -> str:
+def generate_token(payload: dict, secret_key: str) -> str:
     """
-    Генерация токена для проверки webhook от Tinkoff.
-    payload: dict - пришедший JSON от Tinkoff
-    secret_key: str - ваш секретный ключ терминала (если не передан, берется из settings)
+    Генерация токена строго по документации Tinkoff MAPI
     """
-    from .config import settings
-    if not secret_key:
-        secret_key = settings.TINKOFF_PASSWORD
 
-    # Ключи в payload сортируются по алфавиту
-    keys = sorted([k for k in payload.keys() if k.lower() != 'token'])
-    concat_values = ''.join([str(payload[k]) for k in keys])
-    concat_values += secret_key
-    token = hashlib.sha256(concat_values.encode('utf-8')).hexdigest()
-    return token
+    token_data = {}
+
+    for k, v in payload.items():
+        # Исключаем Token и вложенные объекты
+        if k == "Token":
+            continue
+        if isinstance(v, (dict, list)):
+            continue
+        token_data[k] = str(v)
+
+    # Добавляем Password как ОБЫЧНОЕ поле
+    token_data["Password"] = secret_key
+
+    # Сортировка по ключу
+    sorted_items = sorted(token_data.items(), key=lambda x: x[0])
+
+    # Конкатенация значений
+    concat = "".join(value for _, value in sorted_items)
+
+    return hashlib.sha256(concat.encode("utf-8")).hexdigest()
+
 
 def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: str):
     terminal_key = settings.TINKOFF_TERMINAL_KEY
@@ -29,7 +39,7 @@ def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: 
 
     payload = {
         "TerminalKey": terminal_key,
-        "Amount": int(amount_cents),
+        "Amount": amount_cents,
         "OrderId": str(order_id),
         "Description": f"Оплата заказа {order_id}",
         "PayType": "O",
@@ -40,21 +50,22 @@ def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: 
         }
     }
 
-    # ГЕНЕРАЦИЯ ТОКЕНА СТРОГО ПО ДОКУМЕНТАЦИИ
-    token = generate_webhook_token(payload, secret_key)
-    payload["Token"] = token
+    payload["Token"] = generate_token(payload, secret_key)
 
     url = "https://securepay.tinkoff.ru/v2/Init"
     resp = requests.post(url, json=payload, timeout=15)
 
     data = resp.json()
     if not data.get("Success"):
-        raise Exception(f"Tinkoff Init error: {data.get('Message')} {data.get('Details')}")
+        raise Exception(
+            f"Tinkoff Init error: {data.get('Message')} {data.get('Details')}"
+        )
 
     return {
         "payment_url": data.get("PaymentURL"),
-        "payment_id": data.get("PaymentId")
+        "payment_id": data.get("PaymentId"),
     }
+
 
 
 # ==============================
