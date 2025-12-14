@@ -23,57 +23,39 @@ def generate_webhook_token(payload: dict, secret_key: str = None) -> str:
     token = hashlib.sha256(concat_values.encode('utf-8')).hexdigest()
     return token
 
-def _sha256_hex(s: str) -> str:
-    return hashlib.sha256(s.encode('utf-8')).hexdigest()
-# ==============================
-# Инициализация платежа Init
-# ==============================
 def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: str):
-    """
-    amount_cents: сумма в копейках (int, например 1000 => 10.00 руб)
-    order_id: ваш OrderId (строка)
-    email, phone: данные покупателя
-    """
     terminal_key = settings.TINKOFF_TERMINAL_KEY
-    secret_key = settings.TINKOFF_PASSWORD  # SecretKey / Password в терминах Tinkoff
-
-    # ВАЖНО: строковый вид полей должен соответствовать документации (Amount — число в копейках без .00)
-    # Точный порядок для Init (по документации/практике): Amount + Description + OrderId + Password + TerminalKey
-    description = f"Оплата заказа {order_id}"
-    amount_str = str(int(amount_cents))  # убедиться, что целое число
-
-    concat = amount_str + description + str(order_id) + secret_key + terminal_key
-    token = _sha256_hex(concat)
+    secret_key = settings.TINKOFF_PASSWORD
 
     payload = {
         "TerminalKey": terminal_key,
         "Amount": int(amount_cents),
         "OrderId": str(order_id),
-        "Description": description,
-        "Token": token,
-        "DATA": {"Email": email, "Phone": phone},
+        "Description": f"Оплата заказа {order_id}",
         "PayType": "O",
         "Recurrent": "N",
+        "DATA": {
+            "Email": email,
+            "Phone": phone
+        }
     }
 
-    logger.error(payload)
-
-    logger.error("TK=%s SK=%s", terminal_key, secret_key)
-
-    logger.error("Concat for token: %s", concat)
-    logger.error("Token: %s", token)
-    logger.error("Payload: %s", payload)
-
+    # ГЕНЕРАЦИЯ ТОКЕНА СТРОГО ПО ДОКУМЕНТАЦИИ
+    token = generate_webhook_token(payload, secret_key)
+    payload["Token"] = token
 
     url = "https://securepay.tinkoff.ru/v2/Init"
     resp = requests.post(url, json=payload, timeout=15)
-    logger.debug("Tinkoff Init request payload (no secret): %s", {k: v for k,v in payload.items() if k != 'Token'})
-    logger.debug("Tinkoff Init response: %s", resp.text)
 
     data = resp.json()
     if not data.get("Success"):
         raise Exception(f"Tinkoff Init error: {data.get('Message')} {data.get('Details')}")
-    return {"payment_url": data.get("PaymentURL"), "payment_id": data.get("PaymentId")}
+
+    return {
+        "payment_url": data.get("PaymentURL"),
+        "payment_id": data.get("PaymentId")
+    }
+
 
 # ==============================
 # Проверка статуса платежа CheckOrder
