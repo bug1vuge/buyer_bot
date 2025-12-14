@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import os
 from datetime import datetime, timezone
-from .tinkoff_client import create_tinkoff_payment, check_order, generate_webhook_token
+from .tinkoff_client import create_tinkoff_payment, check_order, generate_token
 
 # DATABASE
 DATABASE_URL = settings.DATABASE_URL
@@ -129,36 +129,18 @@ def pay_page(request: Request, product_id: int):
 @app.post("/api/tinkoff/webhook")
 async def tinkoff_webhook(request: Request):
     payload = await request.json()
+
     received_token = payload.get("Token")
-    calc_token = generate_webhook_token(payload)
+    if not received_token:
+        return JSONResponse({"ok": False, "detail": "Token missing"}, status_code=400)
+
+    calc_token = generate_token(payload, settings.TINKOFF_PASSWORD)
+
     if calc_token != received_token:
-        return JSONResponse({"ok": False, "detail": "Invalid token"}, status_code=400)
-
-    session = SessionLocal()
-    try:
-        payment_id = payload.get("PaymentId")
-        order_id = payload.get("OrderId")
-        status = payload.get("Status")
-        order = None
-
-        if payment_id:
-            order = session.query(Order).filter(Order.yookassa_payment_id == str(payment_id)).first()
-        if not order and order_id:
-            order = session.query(Order).filter(Order.order_id_str == str(order_id)).first()
-        if not order:
-            return JSONResponse({"ok": False, "detail": "Order not found"}, status_code=404)
-
-        s = (status or "").lower()
-        if s in ("confirmed", "completed", "authorized", "success"):
-            order.status = "paid"
-            order.paid_at = datetime.utcnow()
-        elif s in ("reversed", "refunded", "failed", "declined", "rejected", "canceled", "cancelled"):
-            order.status = "cancelled"
-
-        session.commit()
-        return {"ok": True}
-    finally:
-        session.close()
+        return JSONResponse(
+            {"ok": False, "detail": "Invalid token"},
+            status_code=400
+        )
 
 # ==========================
 # RUN
