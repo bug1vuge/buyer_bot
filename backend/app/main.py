@@ -185,6 +185,8 @@ async def tinkoff_webhook(request: Request):
         if order.status == "paid":
             return {"ok": True}
 
+        print(status)
+        
         # 5. Успешная оплата
         if status in ("confirmed", "completed", "authorized", "success"):
             order.status = "paid"
