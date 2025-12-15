@@ -2,81 +2,37 @@ import requests
 import hashlib
 from .config import settings
 import logging
-from datetime import datetime
+import json
 
 logger = logging.getLogger(__name__)
 
-# ==============================
-# TOKEN
-# ==============================
 def generate_token(payload: dict, secret_key: str) -> str:
     """
     Генерация токена строго по документации Tinkoff MAPI
     """
+
     token_data = {}
 
     for k, v in payload.items():
+        # Исключаем Token и вложенные объекты
         if k == "Token":
             continue
         if isinstance(v, (dict, list)):
             continue
         token_data[k] = str(v)
 
+    # Добавляем Password как ОБЫЧНОЕ поле
     token_data["Password"] = secret_key
 
-    concat = "".join(
-        value for _, value in sorted(token_data.items(), key=lambda x: x[0])
-    )
+    # Сортировка по ключу
+    sorted_items = sorted(token_data.items(), key=lambda x: x[0])
+
+    # Конкатенация значений
+    concat = "".join(value for _, value in sorted_items)
 
     return hashlib.sha256(concat.encode("utf-8")).hexdigest()
 
 
-# ==============================
-# TELEGRAM
-# ==============================
-def send_admin_notification(text: str):
-    """
-    Отправка уведомления администратору в Telegram
-    """
-    if not settings.TELEGRAM_BOT_TOKEN or not settings.ADMIN_CHAT_ID:
-        logger.warning("Telegram settings not configured")
-        return
-
-    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": settings.ADMIN_CHAT_ID,
-        "text": text,
-        "parse_mode": "HTML"
-    }
-
-    try:
-        requests.post(url, json=payload, timeout=10)
-    except Exception as e:
-        logger.error("Telegram send error: %s", e)
-
-
-def build_paid_message(order, product) -> str:
-    """
-    Формирование текста уведомления об успешной оплате
-    """
-    return (
-        "✅ <b>Заказ оплачен!</b>\n\n"
-        f"<b>ID:</b> {order.order_id_str}\n"
-        f"<b>Товар:</b> {product.title}\n"
-        f"<b>Количество:</b> {order.quantity} шт\n"
-        f"<b>Сумма:</b> {order.total_amount_cents // 100} ₽\n"
-        f"<b>Дата:</b> {datetime.now().strftime('%d.%m.%y')}\n\n"
-        "<b>Клиент:</b>\n"
-        f"ФИО: {order.customer_fullname}\n"
-        f"Телефон: {order.customer_phone}\n"
-        f"Город: {order.customer_city}\n"
-        f"Адрес: {order.customer_address}"
-    )
-
-
-# ==============================
-# INIT PAYMENT
-# ==============================
 def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: str):
     terminal_key = settings.TINKOFF_TERMINAL_KEY
     secret_key = settings.TINKOFF_PASSWORD
@@ -109,3 +65,38 @@ def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: 
         "payment_url": data.get("PaymentURL"),
         "payment_id": data.get("PaymentId"),
     }
+
+
+
+# ==============================
+# Проверка статуса платежа CheckOrder
+# ==============================
+def check_order(order_id: str):
+    """
+    Проверка статуса платежа (CheckOrder/GetState).
+    Подпись: OrderId + Password + TerminalKey (в этом порядке).
+    """
+    terminal_key = settings.TINKOFF_TERMINAL_KEY
+    secret_key = settings.TINKOFF_PASSWORD
+
+    concat = str(order_id) + secret_key + terminal_key
+    token = _sha256_hex(concat)
+
+    payload = {"TerminalKey": terminal_key, "OrderId": str(order_id), "Token": token}
+    url = "https://securepay.tinkoff.ru/v2/CheckOrder"
+    resp = requests.post(url, json=payload, timeout=10)
+    logger.debug("Tinkoff CheckOrder response: %s", resp.text)
+
+    data = resp.json()
+    if not data.get("Success"):
+        return {"status": False, "message": f"{data.get('Message')} {data.get('Details')}"}
+    payments = data.get("Payments", [])
+    if not payments:
+        return {"status": False, "message": "Нет платежей в заказе"}
+    payment = payments[0]
+    return {"status": payment.get("Success"), "message": payment.get("Message"), "status_payment": payment.get("Status")}
+
+
+
+
+
