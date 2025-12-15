@@ -33,47 +33,6 @@ def generate_token(payload: dict, secret_key: str) -> str:
     return hashlib.sha256(concat.encode("utf-8")).hexdigest()
 
 
-# ==============================
-# TELEGRAM
-# ==============================
-def send_admin_notification(text: str):
-    """
-    Отправка уведомления администратору в Telegram
-    """
-    if not settings.TELEGRAM_BOT_TOKEN or not settings.ADMIN_CHAT_ID:
-        logger.warning("Telegram settings not configured")
-        return
-
-    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": settings.ADMIN_CHAT_ID,
-        "text": text,
-        "parse_mode": "HTML"
-    }
-
-    try:
-        requests.post(url, json=payload, timeout=10)
-    except Exception as e:
-        logger.error("Telegram send error: %s", e)
-
-
-def build_paid_message(order, product) -> str:
-    """
-    Формирование текста уведомления об успешной оплате
-    """
-    return (
-        "✅ <b>Заказ оплачен!</b>\n\n"
-        f"<b>ID:</b> {order.order_id_str}\n"
-        f"<b>Товар:</b> {product.title}\n"
-        f"<b>Количество:</b> {order.quantity} шт\n"
-        f"<b>Сумма:</b> {order.total_amount_cents // 100} ₽\n"
-        f"<b>Дата:</b> {datetime.now().strftime('%d.%m.%y')}\n\n"
-        "<b>Клиент:</b>\n"
-        f"ФИО: {order.customer_fullname}\n"
-        f"Телефон: {order.customer_phone}\n"
-        f"Город: {order.customer_city}\n"
-        f"Адрес: {order.customer_address}"
-    )
 
 
 def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: str):
@@ -140,6 +99,31 @@ def check_order(order_id: str):
     return {"status": payment.get("Success"), "message": payment.get("Message"), "status_payment": payment.get("Status")}
 
 
+def build_paid_message(order, product) -> str:
+    return (
+        "✅ Заказ оплачен!\n\n"
+        f"ID: {order.order_id_str}\n"
+        f"Товар: {product.title}\n"
+        f"Количество: {order.quantity} шт\n"
+        f"Сумма: {order.total_amount_cents // 100} ₽\n"
+        f"Дата: {order.paid_at.strftime('%d.%m.%Y')}\n\n"
+        "👤 Клиент:\n"
+        f"ФИО: {order.customer_fullname}\n"
+        f"Телефон: {order.customer_phone}\n"
+        f"Город: {order.customer_city}\n"
+        f"Адрес: {order.customer_address}"
+    )
+
+def send_admin_notification(text: str):
+    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": settings.TELEGRAM_NOTIFY_CHAT_ID,
+        "text": text
+    }
+
+    resp = requests.post(url, json=payload, timeout=10)
+    if not resp.ok:
+        logger.error("Telegram send error: %s", resp.text)
 
 
 
