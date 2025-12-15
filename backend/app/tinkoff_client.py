@@ -38,13 +38,13 @@ def send_admin_notification(text: str):
     """
     Отправка уведомления администратору в Telegram
     """
-    if not settings.TELEGRAM_BOT_TOKEN or not settings.TELEGRAM_ADMIN_CHAT_ID:
+    if not settings.TELEGRAM_BOT_TOKEN or not settings.ADMIN_CHAT_ID:
         logger.warning("Telegram settings not configured")
         return
 
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
-        "chat_id": settings.TELEGRAM_ADMIN_CHAT_ID,
+        "chat_id": settings.ADMIN_CHAT_ID,
         "text": text,
         "parse_mode": "HTML"
     }
