@@ -190,13 +190,14 @@ async def tinkoff_webhook(request: Request):
             order.status = "paid"
             order.paid_at = datetime.now(timezone.utc)
             session.commit()
-
+        
             product = session.query(Product).filter(
                 Product.id == order.product_id
             ).first()
-
+        
             message = build_paid_message(order, product)
             send_admin_notification(message)
+
 
         # 6. Неуспешные статусы
         elif status in (
