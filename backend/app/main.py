@@ -163,6 +163,10 @@ async def tinkoff_webhook(request: Request):
     order_id = payload.get("OrderId")
     status = (payload.get("Status") or "").lower()
 
+    logger.info(payment_id)
+    logger.info(order_id)
+    logger.info(status)
+    
     session = SessionLocal()
     try:
         # 3. Ищем заказ
@@ -184,8 +188,6 @@ async def tinkoff_webhook(request: Request):
         # 4. Защита от повторных webhook
         if order.status == "paid":
             return {"ok": True}
-
-        print(status)
         
         # 5. Успешная оплата
         if status in ("confirmed", "completed", "authorized", "success"):
