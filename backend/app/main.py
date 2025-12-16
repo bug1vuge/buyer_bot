@@ -162,10 +162,6 @@ async def tinkoff_webhook(request: Request):
     payment_id = payload.get("PaymentId")
     order_id = payload.get("OrderId")
     status = (payload.get("Status") or "").lower()
-
-    logger.info(payment_id)
-    logger.info(order_id)
-    logger.info(status)
     
     session = SessionLocal()
     try:
