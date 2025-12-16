@@ -13,6 +13,9 @@ import os
 from datetime import datetime, timezone
 from .tinkoff_client import create_tinkoff_payment, check_order, generate_token, build_paid_message, send_admin_notification
 
+import logging
+logger = logging.getLogger(__name__)
+
 # DATABASE
 DATABASE_URL = settings.DATABASE_URL
 engine = create_engine(DATABASE_URL, future=True)
