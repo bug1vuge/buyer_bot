@@ -190,7 +190,7 @@ async def tinkoff_webhook(request: Request):
             return {"ok": True}
         
         # 5. Успешная оплата
-        if status in ("confirmed", "completed", "authorized", "success"):
+        if status in ("confirmed", "completed", "authorized", "success", "pending"):
             order.status = "paid"
             order.paid_at = datetime.now(timezone.utc)
             session.commit()
