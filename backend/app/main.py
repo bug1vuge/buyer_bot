@@ -146,6 +146,9 @@ def pay_page(request: Request, product_id: int):
 async def tinkoff_webhook(request: Request):
     payload = await request.json()
 
+    print("=== TINKOFF WEBHOOK HIT ===")
+    print(payload)
+
     # 1. Проверка токена
     received_token = payload.get("Token")
     if not received_token:
