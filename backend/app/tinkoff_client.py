@@ -102,6 +102,9 @@ def send_admin_notification(text: str):
     }
 
     resp = requests.post(url, json=payload, timeout=10)
+    print("TG STATUS:", resp.status_code)
+    print("TG RESPONSE:", resp.text)
+    
     if not resp.ok:
         logger.error("Telegram send error: %s", resp.text)
 
