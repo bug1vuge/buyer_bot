@@ -7,33 +7,22 @@ import json
 logger = logging.getLogger(__name__)
 
 def generate_token(payload: dict, secret_key: str) -> str:
-    """
-    Генерация токена строго по документации Tinkoff MAPI
-    """
-
     token_data = {}
 
     for k, v in payload.items():
-        # Исключаем Token и вложенные объекты
         if k == "Token":
             continue
         if isinstance(v, (dict, list)):
             continue
         token_data[k] = str(v)
 
-    # Добавляем Password как ОБЫЧНОЕ поле
     token_data["Password"] = secret_key
 
-    # Сортировка по ключу
     sorted_items = sorted(token_data.items(), key=lambda x: x[0])
 
-    # Конкатенация значений
     concat = "".join(value for _, value in sorted_items)
 
     return hashlib.sha256(concat.encode("utf-8")).hexdigest()
-
-
-
 
 def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: str):
     terminal_key = settings.TINKOFF_TERMINAL_KEY
@@ -68,16 +57,7 @@ def create_tinkoff_payment(amount_cents: int, order_id: str, email: str, phone: 
         "payment_id": data.get("PaymentId"),
     }
 
-
-
-# ==============================
-# Проверка статуса платежа CheckOrder
-# ==============================
 def check_order(order_id: str):
-    """
-    Проверка статуса платежа (CheckOrder/GetState).
-    Подпись: OrderId + Password + TerminalKey (в этом порядке).
-    """
     terminal_key = settings.TINKOFF_TERMINAL_KEY
     secret_key = settings.TINKOFF_PASSWORD
 
