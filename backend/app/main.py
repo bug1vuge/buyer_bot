@@ -17,6 +17,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from io import BytesIO
 from datetime import datetime, timezone, timedelta, date
 from .tinkoff_client import create_tinkoff_payment, check_order, generate_token, build_paid_message, send_admin_notification
+from pathlib import Path
 
 # DATABASE
 DATABASE_URL = settings.DATABASE_URL
