@@ -17,3 +17,4 @@ PyYAML
 aiogram==3.0.0b7
 python-dotenv
 requests
+reportlab
