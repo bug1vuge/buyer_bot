@@ -303,7 +303,7 @@ def sales_report(payload: SalesReportIn):
                 func.sum(Order.agent_fee_cents).label("agent_fee"),
             )
             .join(Product, Product.id == Order.product_id)
-            .filter(Order.status == "paid")
+            .filter(Order.status.in_(["paid", "pending"]))
         )
 
         if date_from:
