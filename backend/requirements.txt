@@ -14,4 +14,4 @@ aiosmtplib
 wkhtmltopdf-py
 python-dateutil
 PyYAML
-reportlab==4.1.0
+reportlab
