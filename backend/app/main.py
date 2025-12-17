@@ -218,6 +218,8 @@ async def tinkoff_webhook(request: Request):
 
 
 #генерация pdf
+pdfmetrics.registerFont(TTFont('Inter-Bold', '/static/fonts/Inter-Bold.woff'))
+
 def generate_sales_report_pdf(
     title: str,
     items: list[dict],
@@ -230,18 +232,18 @@ def generate_sales_report_pdf(
 
     y = height - 50
 
-    c.setFont("Helvetica-Bold", 14)
+    c.setFont("Inter-Bold", 14)
     c.drawString(40, y, title)
     y -= 40
 
-    c.setFont("Helvetica-Bold", 10)
+    c.setFont("Inter-Bold", 10)
     c.drawString(40, y, "Товар")
     c.drawString(240, y, "Кол-во")
     c.drawString(310, y, "Сумма ₽")
     c.drawString(400, y, "Агент ₽")
     y -= 15
 
-    c.setFont("Helvetica", 10)
+    c.setFont("Inter-Bold", 10)
 
     for item in items:
         if y < 80:
@@ -256,7 +258,7 @@ def generate_sales_report_pdf(
         y -= 15
 
     y -= 20
-    c.setFont("Helvetica-Bold", 11)
+    c.setFont("Inter-Bold", 11)
     c.drawString(40, y, f"Итого сумма: {total_sum:,} ₽".replace(",", " "))
     y -= 15
     c.drawString(40, y, f"Итого агентская сумма: {total_agent:,} ₽".replace(",", " "))
