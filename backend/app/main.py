@@ -420,7 +420,7 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
     # Шапка таблицы
     c.setFont("Inter-Medium", 10)
     c.drawString(40, y, "ID заказа")
-    c.drawString(110, y, "Товар")
+    c.drawString(80, y, "Товар")
     c.drawString(250, y, "Кол-во")
     c.drawString(310, y, "Сумма ₽")
     c.drawString(390, y, "Дата")
@@ -437,7 +437,7 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
 
         # Основные колонки
         c.drawString(40, y, item["order_id"])
-        c.drawString(110, y, item["product_title"])
+        c.drawString(80, y, item["product_title"])
         c.drawRightString(270, y, str(item["quantity"]))
         c.drawRightString(350, y, f"{item['total_amount']:,}".replace(",", " "))
         c.drawString(390, y, item["date"])
