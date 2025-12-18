@@ -411,35 +411,55 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
     width, height = A4
 
     y = height - 50
+
+    # Заголовок
     c.setFont("Inter-Medium", 14)
     c.drawString(40, y, title)
     y -= 40
 
+    # Шапка таблицы
     c.setFont("Inter-Medium", 10)
-    headers = ["ID заказа", "Товар", "Кол-во", "Сумма ₽", "Дата", "ФИО", "Телефон", "Город", "Адрес"]
-    x_positions = [40, 110, 220, 260, 320, 380, 500, 580, 640]
-
-    for x, h in zip(x_positions, headers):
-        c.drawString(x, y, h)
+    c.drawString(40, y, "ID заказа")
+    c.drawString(120, y, "Товар")
+    c.drawString(280, y, "Кол-во")
+    c.drawString(340, y, "Сумма ₽")
+    c.drawString(420, y, "Дата")
+    c.drawString(480, y, "Клиент")
     y -= 15
 
     c.setFont("Inter-Medium", 10)
+
     for item in items:
-        if y < 80:
+        if y < 120:
             c.showPage()
             y = height - 50
             c.setFont("Inter-Medium", 10)
 
-        c.drawString(x_positions[0], y, item["order_id"])
-        c.drawString(x_positions[1], y, str(item["product_title"]))
-        c.drawRightString(x_positions[2]+20, y, str(item["quantity"]))
-        c.drawRightString(x_positions[3]+20, y, f"{item['total_amount']:,}".replace(",", " "))
-        c.drawString(x_positions[4], y, item["date"])
-        c.drawString(x_positions[5], y, item["fullname"])
-        c.drawString(x_positions[6], y, item["phone"])
-        c.drawString(x_positions[7], y, item["city"])
-        c.drawString(x_positions[8], y, item["address"])
-        y -= 15
+        # Основные колонки
+        c.drawString(40, y, item["order_id"])
+        c.drawString(120, y, item["product_title"])
+        c.drawRightString(310, y, str(item["quantity"]))
+        c.drawRightString(390, y, f"{item['total_amount']:,}".replace(",", " "))
+        c.drawString(420, y, item["date"])
+
+        # Клиент (многострочно)
+        client_y = y
+        client_x = 480
+        client = item["client"]
+
+        if client.get("fullname"):
+            c.drawString(client_x, client_y, client["fullname"])
+            client_y -= 12
+        if client.get("phone"):
+            c.drawString(client_x, client_y, client["phone"])
+            client_y -= 12
+        if client.get("city"):
+            c.drawString(client_x, client_y, client["city"])
+            client_y -= 12
+        if client.get("address"):
+            c.drawString(client_x, client_y, client["address"])
+
+        y -= 50  # высота строки
 
     c.showPage()
     c.save()
@@ -448,22 +468,32 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
 
 
 @app.post("/api/reports/clients")
-def clients_report(payload: SalesReportIn):  # можно переименовать тип в ClientsReportIn
+def clients_report(payload: SalesReportIn):
     session = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
 
-        if payload.period == "all":
-            date_from = None
-            date_to = None
-        elif payload.period:
-            date_from = now - timedelta(days=int(payload.period))
-            date_to = now
+        # Период
+        if payload.period:
+            if payload.period == "all":
+                date_from = None
+                date_to = None
+            else:
+                date_from = now - timedelta(days=int(payload.period))
+                date_to = now
         else:
             date_from = datetime.combine(payload.start_date, datetime.min.time(), tzinfo=timezone.utc)
             date_to = datetime.combine(payload.end_date, datetime.max.time(), tzinfo=timezone.utc)
 
-        query = session.query(Order).filter(Order.status == "created")
+        # Запрос
+        query = (
+            session.query(
+                Order,
+                Product.title.label("product_title")
+            )
+            .join(Product, Product.id == Order.product_id)
+            .filter(Order.status == "created")
+        )
 
         if date_from:
             query = query.filter(Order.created_at >= date_from)
@@ -473,33 +503,47 @@ def clients_report(payload: SalesReportIn):  # можно переименова
         rows = query.order_by(Order.created_at).all()
 
         items = []
-        for r in rows:
+        for order, product_title in rows:
             items.append({
-                "order_id": r.order_id_str,
-                "product_title": r.product_id,  # если есть название продукта, подставь его
-                "quantity": r.quantity,
-                "total_amount": int(r.total_amount_cents / 100),
-                "date": r.created_at.strftime("%d.%m.%y") if r.created_at else "",
-                "fullname": r.customer_fullname,
-                "phone": r.customer_phone,
-                "city": r.customer_city,
-                "address": r.customer_address
+                "order_id": order.order_id_str,
+                "product_title": product_title,
+                "quantity": order.quantity,
+                "total_amount": int(order.total_amount_cents // 100),
+                "date": order.created_at.strftime("%d.%m.%y") if order.created_at else "",
+                "client": {
+                    "fullname": order.customer_fullname,
+                    "phone": order.customer_phone,
+                    "city": order.customer_city,
+                    "address": order.customer_address,
+                }
             })
 
-        title = "Отчёт по клиентам"
-        if payload.period and payload.period != "all":
-            title += f" за период: {payload.start_date} - {payload.end_date}" if hasattr(payload, "start_date") else f" за последние {payload.period} дней"
+        # Заголовок
+        if payload.period == "all":
+            title = "Отчёт по клиентам за всё время"
+        elif payload.period:
+            title = f"Отчёт по клиентам за последние {payload.period} дней"
+        else:
+            title = f"Отчёт по клиентам: {payload.start_date} - {payload.end_date}"
 
         if not items:
-            items = [{"order_id": "Нет данных за период", "product_title": "", "quantity": 0, "total_amount": 0,
-                      "date": "", "fullname": "", "phone": "", "city": "", "address": ""}]
+            items = [{
+                "order_id": "Нет данных",
+                "product_title": "",
+                "quantity": 0,
+                "total_amount": 0,
+                "date": "",
+                "client": {}
+            }]
 
         pdf_bytes = generate_clients_report_pdf(title, items)
 
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": "attachment; filename=clients_report.pdf"}
+            headers={
+                "Content-Disposition": "attachment; filename=clients_report.pdf"
+            }
         )
     finally:
         session.close()
