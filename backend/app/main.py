@@ -221,7 +221,7 @@ async def tinkoff_webhook(request: Request):
 
 
 
-#генерация pdf
+#генерация pdf продаж
 BASE_DIR = Path(__file__).resolve().parent
 FONT_PATH = BASE_DIR / "static" / "fonts" / "Inter-Medium.ttf"
 
@@ -405,23 +405,23 @@ def sales_report(payload: SalesReportIn):
         session.close()
 
 # генерация pdf клиентов
-def generate_clients_report_pdf(items: list[dict]) -> bytes:
+def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
     y = height - 50
-    c.setFont("Inter-Medium", 12)
-    c.drawString(40, y, "Отчёт по клиентам")
-    y -= 30
+    c.setFont("Inter-Medium", 14)
+    c.drawString(40, y, title)
+    y -= 40
 
-    # Заголовки колонок
+    c.setFont("Inter-Medium", 10)
     headers = ["ID заказа", "Товар", "Кол-во", "Сумма ₽", "Дата", "ФИО", "Телефон", "Город", "Адрес"]
-    x_positions = [40, 120, 250, 300, 360, 420, 540, 620, 700]
+    x_positions = [40, 110, 220, 260, 320, 380, 500, 580, 640]
 
-    for i, h in enumerate(headers):
-        c.drawString(x_positions[i], y, h)
-    y -= 20
+    for x, h in zip(x_positions, headers):
+        c.drawString(x, y, h)
+    y -= 15
 
     c.setFont("Inter-Medium", 10)
     for item in items:
@@ -431,9 +431,9 @@ def generate_clients_report_pdf(items: list[dict]) -> bytes:
             c.setFont("Inter-Medium", 10)
 
         c.drawString(x_positions[0], y, item["order_id"])
-        c.drawString(x_positions[1], y, item["product_title"])
-        c.drawRightString(x_positions[2]+10, y, str(item["quantity"]))
-        c.drawRightString(x_positions[3]+10, y, f"{item['total_amount']:,}".replace(",", " "))
+        c.drawString(x_positions[1], y, str(item["product_title"]))
+        c.drawRightString(x_positions[2]+20, y, str(item["quantity"]))
+        c.drawRightString(x_positions[3]+20, y, f"{item['total_amount']:,}".replace(",", " "))
         c.drawString(x_positions[4], y, item["date"])
         c.drawString(x_positions[5], y, item["fullname"])
         c.drawString(x_positions[6], y, item["phone"])
@@ -448,48 +448,53 @@ def generate_clients_report_pdf(items: list[dict]) -> bytes:
 
 
 @app.post("/api/reports/clients")
-def clients_report(payload: SalesReportIn):  # можно использовать тот же payload с period/start_date/end_date
+def clients_report(payload: SalesReportIn):  # можно переименовать тип в ClientsReportIn
     session = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
 
-        if payload.period:
-            if payload.period == "all":
-                date_from = None
-            else:
-                date_from = now - timedelta(days=int(payload.period))
+        if payload.period == "all":
+            date_from = None
+            date_to = None
+        elif payload.period:
+            date_from = now - timedelta(days=int(payload.period))
             date_to = now
         else:
             date_from = datetime.combine(payload.start_date, datetime.min.time(), tzinfo=timezone.utc)
             date_to = datetime.combine(payload.end_date, datetime.max.time(), tzinfo=timezone.utc)
 
-        # Берем только оплаченные заказы
-        query = session.query(Order).join(Product).filter(Order.status=="paid")
+        query = session.query(Order).filter(Order.status == "created")
 
         if date_from:
-            query = query.filter(Order.paid_at >= date_from)
+            query = query.filter(Order.created_at >= date_from)
         if date_to:
-            query = query.filter(Order.paid_at <= date_to)
+            query = query.filter(Order.created_at <= date_to)
 
-        rows = query.order_by(Order.paid_at).all()
+        rows = query.order_by(Order.created_at).all()
 
         items = []
         for r in rows:
             items.append({
                 "order_id": r.order_id_str,
-                "product_title": r.product.title,
+                "product_title": r.product_id,  # если есть название продукта, подставь его
                 "quantity": r.quantity,
                 "total_amount": int(r.total_amount_cents / 100),
-                "date": r.paid_at.strftime("%d.%m.%y") if r.paid_at else "",
+                "date": r.created_at.strftime("%d.%m.%y") if r.created_at else "",
                 "fullname": r.customer_fullname,
                 "phone": r.customer_phone,
                 "city": r.customer_city,
                 "address": r.customer_address
             })
 
-        pdf_bytes = generate_clients_report_pdf(
-            items=items
-        )
+        title = "Отчёт по клиентам"
+        if payload.period and payload.period != "all":
+            title += f" за период: {payload.start_date} - {payload.end_date}" if hasattr(payload, "start_date") else f" за последние {payload.period} дней"
+
+        if not items:
+            items = [{"order_id": "Нет данных за период", "product_title": "", "quantity": 0, "total_amount": 0,
+                      "date": "", "fullname": "", "phone": "", "city": "", "address": ""}]
+
+        pdf_bytes = generate_clients_report_pdf(title, items)
 
         return Response(
             content=pdf_bytes,
@@ -498,6 +503,7 @@ def clients_report(payload: SalesReportIn):  # можно использоват
         )
     finally:
         session.close()
+
 
 
 # ==========================
