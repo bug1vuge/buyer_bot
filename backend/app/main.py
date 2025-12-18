@@ -421,9 +421,9 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
     c.setFont("Inter-Medium", 10)
     c.drawString(60, y, "ID заказа")
     c.drawString(130, y, "Товар")
-    c.drawString(220, y, "Кол-во")
-    c.drawString(290, y, "Сумма ₽")
-    c.drawString(370, y, "Дата")
+    c.drawString(200, y, "Кол-во")
+    c.drawString(250, y, "Сумма ₽")
+    c.drawString(330, y, "Дата")
     c.drawString(410, y, "Клиент") 
     y -= 15
 
@@ -438,9 +438,9 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
         # Основные колонки
         c.drawString(60, y, item["order_id"])
         c.drawString(130, y, item["product_title"])
-        c.drawRightString(220, y, str(item["quantity"]))
-        c.drawRightString(290, y, f"{item['total_amount']:,}".replace(",", " "))
-        c.drawString(370, y, item["date"])
+        c.drawRightString(200, y, str(item["quantity"]))
+        c.drawRightString(250, y, f"{item['total_amount']:,}".replace(",", " "))
+        c.drawString(330, y, item["date"])
         
         # Клиент (многострочно)
         client_y = y
