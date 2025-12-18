@@ -405,12 +405,44 @@ def sales_report(payload: SalesReportIn):
         session.close()
 
 # генерация pdf клиентов
+from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase.pdfmetrics import stringWidth
+
+
+def wrap_text(text: str, max_width: int, font: str, font_size: int) -> list[str]:
+    words = text.split()
+    lines = []
+    current = ""
+
+    for word in words:
+        test = f"{current} {word}".strip()
+        if stringWidth(test, font, font_size) <= max_width:
+            current = test
+        else:
+            lines.append(current)
+            current = word
+
+    if current:
+        lines.append(current)
+
+    return lines or [""]
+
+
 def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
     y = height - 50
+
+    # ---------- НАСТРОЙКИ ----------
+    LINE_HEIGHT = 12
+    ROW_PADDING = 10
+    PRODUCT_COL_WIDTH = 55  # ширина колонки "Товар"
+    CLIENT_X = 410          # колонка "Клиент"
+    # --------------------------------
 
     # Заголовок
     c.setFont("Inter-Medium", 14)
@@ -424,47 +456,129 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
     c.drawString(200, y, "Кол-во")
     c.drawString(270, y, "Сумма ₽")
     c.drawString(330, y, "Дата")
-    c.drawString(410, y, "Клиент") 
-    y -= 15
+    c.drawString(CLIENT_X, y, "Клиент")
+    y -= 20
 
     c.setFont("Inter-Medium", 9)
 
     for item in items:
-        if y < 120:
+        if y < 140:
             c.showPage()
             y = height - 50
             c.setFont("Inter-Medium", 9)
 
-        # Основные колонки
-        c.drawString(60, y, item["order_id"])
-        c.drawString(140, y, item["product_title"])
-        c.drawRightString(220, y, str(item["quantity"]))
-        c.drawRightString(290, y, f"{item['total_amount']:,}".replace(",", " "))
-        c.drawString(330, y, item["date"])
-        
-        # Клиент (многострочно)
-        client_y = y
-        client_x = 410
+        # ---------- ТОВАР (перенос строк) ----------
+        product_lines = wrap_text(
+            item["product_title"],
+            PRODUCT_COL_WIDTH,
+            "Inter-Medium",
+            9
+        )
+
+        # ---------- КЛИЕНТ ----------
+        client_lines = []
         client = item["client"]
 
         if client.get("fullname"):
-            c.drawString(client_x, client_y, client["fullname"])
-            client_y -= 12
+            client_lines.append(client["fullname"])
         if client.get("phone"):
-            c.drawString(client_x, client_y, client["phone"])
-            client_y -= 12
+            client_lines.append(client["phone"])
         if client.get("city"):
-            c.drawString(client_x, client_y, client["city"])
-            client_y -= 12
+            client_lines.append(client["city"])
         if client.get("address"):
-            c.drawString(client_x, client_y, client["address"])
+            client_lines.append(client["address"])
 
-        y -= 50  # высота строки
+        # ---------- ВЫСОТА СТРОКИ ----------
+        row_height = max(
+            len(product_lines),
+            len(client_lines),
+            1
+        ) * LINE_HEIGHT + ROW_PADDING
+
+        # ---------- ОТРИСОВКА ----------
+        c.drawString(60, y, item["order_id"])
+
+        py = y
+        for line in product_lines:
+            c.drawString(140, py, line)
+            py -= LINE_HEIGHT
+
+        c.drawRightString(220, y, str(item["quantity"]))
+        c.drawRightString(290, y, f"{item['total_amount']:,}".replace(",", " "))
+        c.drawString(330, y, item["date"])
+
+        cy = y
+        for line in client_lines:
+            c.drawString(CLIENT_X, cy, line)
+            cy -= LINE_HEIGHT
+
+        y -= row_height
 
     c.showPage()
     c.save()
     buffer.seek(0)
     return buffer.read()
+
+# def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
+#     buffer = BytesIO()
+#     c = canvas.Canvas(buffer, pagesize=A4)
+#     width, height = A4
+
+#     y = height - 50
+
+#     # Заголовок
+#     c.setFont("Inter-Medium", 14)
+#     c.drawString(40, y, title)
+#     y -= 40
+
+#     # Шапка таблицы
+#     c.setFont("Inter-Medium", 10)
+#     c.drawString(60, y, "ID заказа")
+#     c.drawString(140, y, "Товар")
+#     c.drawString(200, y, "Кол-во")
+#     c.drawString(270, y, "Сумма ₽")
+#     c.drawString(330, y, "Дата")
+#     c.drawString(410, y, "Клиент") 
+#     y -= 15
+
+#     c.setFont("Inter-Medium", 9)
+
+#     for item in items:
+#         if y < 120:
+#             c.showPage()
+#             y = height - 50
+#             c.setFont("Inter-Medium", 9)
+
+#         # Основные колонки
+#         c.drawString(60, y, item["order_id"])
+#         c.drawString(140, y, item["product_title"])
+#         c.drawRightString(220, y, str(item["quantity"]))
+#         c.drawRightString(290, y, f"{item['total_amount']:,}".replace(",", " "))
+#         c.drawString(330, y, item["date"])
+        
+#         # Клиент (многострочно)
+#         client_y = y
+#         client_x = 410
+#         client = item["client"]
+
+#         if client.get("fullname"):
+#             c.drawString(client_x, client_y, client["fullname"])
+#             client_y -= 12
+#         if client.get("phone"):
+#             c.drawString(client_x, client_y, client["phone"])
+#             client_y -= 12
+#         if client.get("city"):
+#             c.drawString(client_x, client_y, client["city"])
+#             client_y -= 12
+#         if client.get("address"):
+#             c.drawString(client_x, client_y, client["address"])
+
+#         y -= 50  # высота строки
+
+#     c.showPage()
+#     c.save()
+#     buffer.seek(0)
+#     return buffer.read()
 
 
 @app.post("/api/reports/clients")
