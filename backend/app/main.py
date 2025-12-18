@@ -252,13 +252,13 @@ def generate_sales_report_pdf(
     c.drawString(400, y, "Агент ₽")
     y -= 15
 
-    c.setFont("Inter-Medium", 10)
+    c.setFont("Inter-Medium", 9)
 
     for item in items:
         if y < 80:
             c.showPage()
             y = height - 50
-            c.setFont("Inter-Medium", 10)
+            c.setFont("Inter-Medium", 9)
 
         product_title = item.get("product_title", "")
         quantity = item.get("quantity", 0)
@@ -420,31 +420,31 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
     # Шапка таблицы
     c.setFont("Inter-Medium", 10)
     c.drawString(40, y, "ID заказа")
-    c.drawString(120, y, "Товар")
-    c.drawString(280, y, "Кол-во")
-    c.drawString(340, y, "Сумма ₽")
-    c.drawString(420, y, "Дата")
-    c.drawString(480, y, "Клиент")
+    c.drawString(110, y, "Товар")
+    c.drawString(250, y, "Кол-во")
+    c.drawString(310, y, "Сумма ₽")
+    c.drawString(390, y, "Дата")
+    c.drawString(450, y, "Клиент")
     y -= 15
 
-    c.setFont("Inter-Medium", 10)
+    c.setFont("Inter-Medium", 9)
 
     for item in items:
         if y < 120:
             c.showPage()
             y = height - 50
-            c.setFont("Inter-Medium", 10)
+            c.setFont("Inter-Medium", 9)
 
         # Основные колонки
         c.drawString(40, y, item["order_id"])
-        c.drawString(120, y, item["product_title"])
-        c.drawRightString(310, y, str(item["quantity"]))
-        c.drawRightString(390, y, f"{item['total_amount']:,}".replace(",", " "))
-        c.drawString(420, y, item["date"])
-
+        c.drawString(110, y, item["product_title"])
+        c.drawRightString(270, y, str(item["quantity"]))
+        c.drawRightString(350, y, f"{item['total_amount']:,}".replace(",", " "))
+        c.drawString(390, y, item["date"])
+        
         # Клиент (многострочно)
         client_y = y
-        client_x = 480
+        client_x = 450
         client = item["client"]
 
         if client.get("fullname"):
