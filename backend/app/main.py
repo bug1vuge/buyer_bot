@@ -422,7 +422,7 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
     c.drawString(60, y, "ID заказа")
     c.drawString(140, y, "Товар")
     c.drawString(200, y, "Кол-во")
-    c.drawString(250, y, "Сумма ₽")
+    c.drawString(270, y, "Сумма ₽")
     c.drawString(330, y, "Дата")
     c.drawString(410, y, "Клиент") 
     y -= 15
