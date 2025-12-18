@@ -4,6 +4,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
+from sqlalchemy.sql import func
 
 Base = declarative_base()
 
@@ -59,3 +61,17 @@ class Admin(Base):
 
     def __repr__(self):
         return f"<Admin telegram_id={self.telegram_id}>"
+
+
+
+class OrderArchive(Base):
+    __tablename__ = "orders_archive"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    original_order_id = Column(String(20), nullable=False)
+    data = Column(JSONB, nullable=False)
+    archived_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    restore_until = Column(TIMESTAMP(timezone=True), nullable=False)
+
+    def __repr__(self):
+        return f"<OrderArchive id={self.id} original_order_id={self.original_order_id!r}>"
