@@ -18,6 +18,7 @@ from io import BytesIO
 from datetime import datetime, timezone, timedelta, date
 from .tinkoff_client import create_tinkoff_payment, check_order, generate_token, build_paid_message, send_admin_notification
 from pathlib import Path
+from sqlalchemy import or_, and_
 
 # DATABASE
 DATABASE_URL = settings.DATABASE_URL
@@ -257,12 +258,17 @@ def generate_sales_report_pdf(
         if y < 80:
             c.showPage()
             y = height - 50
-            c.setFont("Helvetica", 10)
+            c.setFont("Inter-Medium", 10)
 
-        c.drawString(40, y, item["product_title"])
-        c.drawRightString(280, y, str(item["quantity"]))
-        c.drawRightString(360, y, f"{item['total_amount']:,}".replace(",", " "))
-        c.drawRightString(460, y, f"{item['agent_fee']:,}".replace(",", " "))
+        product_title = item.get("product_title", "")
+        quantity = item.get("quantity", 0)
+        total_amount = item.get("total_amount", 0)
+        agent_fee = item.get("agent_fee", 0)
+
+        c.drawString(40, y, str(product_title))
+        c.drawRightString(280, y, str(quantity))
+        c.drawRightString(360, y, f"{total_amount:,}".replace(",", " "))
+        c.drawRightString(460, y, f"{agent_fee:,}".replace(",", " "))
         y -= 15
 
     y -= 20
@@ -277,6 +283,7 @@ def generate_sales_report_pdf(
     buffer.seek(0)
     return buffer.read()
 
+
 @app.post("/api/reports/sales")
 def sales_report(payload: SalesReportIn):
     session = SessionLocal()
@@ -287,29 +294,58 @@ def sales_report(payload: SalesReportIn):
         if payload.period:
             if payload.period == "all":
                 date_from = None
+                date_to = None
             else:
                 date_from = now - timedelta(days=int(payload.period))
-            date_to = now
+                date_to = now
         else:
+            # payload.start_date и payload.end_date предполагаются объектами date (pydantic)
+            # приводим их к datetime с timezone UTC
             date_from = datetime.combine(payload.start_date, datetime.min.time(), tzinfo=timezone.utc)
             date_to = datetime.combine(payload.end_date, datetime.max.time(), tzinfo=timezone.utc)
 
-        # Базовый запрос — ТОЛЬКО оплаченные
+        # Базовый запрос — учитываем заказы со статусом paid и created
         query = (
             session.query(
                 Product.title.label("product_title"),
-                func.sum(Order.quantity).label("quantity"),
-                func.sum(Order.total_amount_cents).label("total_amount"),
-                func.sum(Order.agent_fee_cents).label("agent_fee"),
+                func.coalesce(func.sum(Order.quantity), 0).label("quantity"),
+                func.coalesce(func.sum(Order.total_amount_cents), 0).label("total_amount"),
+                func.coalesce(func.sum(Order.agent_fee_cents), 0).label("agent_fee"),
             )
             .join(Product, Product.id == Order.product_id)
             .filter(Order.status.in_(["paid", "created"]))
         )
 
-        if date_from:
-            query = query.filter(Order.paid_at >= date_from)
-        if date_to:
-            query = query.filter(Order.paid_at <= date_to)
+        # Если период задан — фильтруем так, чтобы учитывались:
+        #  - paid  — по полю paid_at
+        #  - created — по полю created_at
+        if date_from or date_to:
+            # составим условия по lower/upper границам
+            conds = []
+            if date_from and date_to:
+                conds.append(
+                    or_(
+                        and_(Order.status == "paid", Order.paid_at >= date_from, Order.paid_at <= date_to),
+                        and_(Order.status == "created", Order.created_at >= date_from, Order.created_at <= date_to),
+                    )
+                )
+            elif date_from:
+                conds.append(
+                    or_(
+                        and_(Order.status == "paid", Order.paid_at >= date_from),
+                        and_(Order.status == "created", Order.created_at >= date_from),
+                    )
+                )
+            elif date_to:
+                conds.append(
+                    or_(
+                        and_(Order.status == "paid", Order.paid_at <= date_to),
+                        and_(Order.status == "created", Order.created_at <= date_to),
+                    )
+                )
+
+            if conds:
+                query = query.filter(*conds)
 
         query = query.group_by(Product.title)
 
@@ -320,14 +356,18 @@ def sales_report(payload: SalesReportIn):
         total_agent = 0
 
         for r in rows:
+            qty = int(r.quantity or 0)
+            total_amount_rub = int((r.total_amount or 0) // 100)
+            agent_fee_rub = int((r.agent_fee or 0) // 100)
+
             items.append({
                 "product_title": r.product_title,
-                "quantity": int(r.quantity),
-                "total_amount": int(r.total_amount / 100),
-                "agent_fee": int(r.agent_fee / 100),
+                "quantity": qty,
+                "total_amount": total_amount_rub,
+                "agent_fee": agent_fee_rub,
             })
-            total_sum += int(r.total_amount / 100)
-            total_agent += int(r.agent_fee / 100)
+            total_sum += total_amount_rub
+            total_agent += agent_fee_rub
 
         # Заголовок отчёта
         if payload.period == "all":
@@ -337,12 +377,21 @@ def sales_report(payload: SalesReportIn):
         else:
             title = f"Отчёт за период: {payload.start_date} - {payload.end_date}"
 
-        pdf_bytes = generate_sales_report_pdf(
-            title=title,
-            items=items,
-            total_sum=total_sum,
-            total_agent=total_agent
-        )
+        # Если нет данных — сгенерируем PDF с пометкой "Нет данных"
+        if not items:
+            pdf_bytes = generate_sales_report_pdf(
+                title=title,
+                items=[{"product_title": "Нет данных за период", "quantity": 0, "total_amount": 0, "agent_fee": 0}],
+                total_sum=0,
+                total_agent=0
+            )
+        else:
+            pdf_bytes = generate_sales_report_pdf(
+                title=title,
+                items=items,
+                total_sum=total_sum,
+                total_agent=total_agent
+            )
 
         return Response(
             content=pdf_bytes,
@@ -354,6 +403,7 @@ def sales_report(payload: SalesReportIn):
 
     finally:
         session.close()
+
 
 # ==========================
 # RUN
