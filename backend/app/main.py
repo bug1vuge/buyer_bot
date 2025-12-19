@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel
 from .config import settings
 from .models import Base, Product, Order
-from .schemas import CreateOrderIn, CreateOrderOut, SalesReportIn, SalesReportItem, SalesReportOut
+from .schemas import CreateOrderIn, CreateOrderOut, SalesReportIn, SalesReportItem, SalesReportOut, CancelOrderIn
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from reportlab.lib.pagesizes import A4
