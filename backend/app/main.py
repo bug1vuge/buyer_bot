@@ -434,8 +434,10 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
 
     LINE_HEIGHT = 12
     ROW_PADDING = 10
-    PRODUCT_COL_WIDTH = 55 
-    CLIENT_X = 410         
+    PRODUCT_COL_WIDTH = 55
+    CLIENT_COL_WIDTH = 160
+    CLIENT_X = 410
+       
 
     # Заголовок
     c.setFont("Inter-Medium", 14)
@@ -471,15 +473,22 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
         # ---------- КЛИЕНТ ----------
         client_lines = []
         client = item["client"]
+        
+        for value in (
+            client.get("fullname"),
+            client.get("phone"),
+            client.get("city"),
+            client.get("address"),
+        ):
+            if value:
+                wrapped = wrap_text(
+                    value,
+                    CLIENT_COL_WIDTH,
+                    "Inter-Medium",
+                    9
+                )
+                client_lines.extend(wrapped)
 
-        if client.get("fullname"):
-            client_lines.append(client["fullname"])
-        if client.get("phone"):
-            client_lines.append(client["phone"])
-        if client.get("city"):
-            client_lines.append(client["city"])
-        if client.get("address"):
-            client_lines.append(client["address"])
 
         # ---------- ВЫСОТА СТРОКИ ----------
         row_height = max(
