@@ -34,3 +34,5 @@ class SalesReportOut(BaseModel):
     total_sum: int
     total_agent_fee: int
 
+class CancelOrderIn(BaseModel):
+    order_id: str
