@@ -662,7 +662,77 @@ def clients_report(payload: SalesReportIn):
     finally:
         session.close()
 
+# отмена заказа
+@app.post("/api/orders/cancel")
+def cancel_order(payload: CancelOrderIn):
+    session: Session = SessionLocal()
 
+    try:
+        # 1. Ищем заказ
+        order = (
+            session.query(Order)
+            .filter(Order.order_uid == payload.order_id)
+            .first()
+        )
+
+        if not order:
+            raise HTTPException(
+                status_code=404,
+                detail="Заказ не найден"
+            )
+
+        # 2. Проверяем статус
+        if order.status != "created":
+            raise HTTPException(
+                status_code=400,
+                detail="Отменить можно только заказ со статусом created"
+            )
+
+        # 3. Данные клиента
+        client = {
+            "fullname": order.fullname,
+            "phone": order.phone,
+            "city": order.city,
+            "address": order.address
+        }
+
+        # 4. Архивирование
+        archive = OrdersArchive(
+            original_order_id=order.order_uid,
+            data={
+                "order": {
+                    "order_uid": order.order_uid,
+                    "product_id": order.product_id,
+                    "quantity": order.quantity,
+                    "total_amount_cents": order.total_amount_cents,
+                    "status": order.status,
+                    "created_at": order.created_at.isoformat()
+                },
+                "client": client
+            },
+            restore_until=datetime.now(timezone.utc) + timedelta(days=30)
+        )
+
+        session.add(archive)
+
+        # 5. Удаление заказа
+        session.delete(order)
+        session.commit()
+
+        # 6. Ответ боту
+        return JSONResponse(
+            {
+                "message": f"Заказ с ID {payload.order_id} удален из системы",
+                "refund": {
+                    "amount": f"{order.total_amount_cents // 100:,}".replace(",", " "),
+                    "client": client["fullname"],
+                    "phone": client["phone"]
+                }
+            }
+        )
+
+    finally:
+        session.close()
 
 # ==========================
 # RUN
