@@ -512,8 +512,8 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
     buffer.seek(0)
     return buffer.read()
 
-@app.post("/api/reports/sales")
-def sales_report(payload: SalesReportIn):
+@app.post("/api/reports/clients")
+def clients_report(payload: SalesReportIn):
     session = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
