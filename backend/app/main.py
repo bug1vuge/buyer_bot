@@ -313,7 +313,7 @@ def sales_report(payload: SalesReportIn):
                 func.coalesce(func.sum(Order.agent_fee_cents), 0).label("agent_fee"),
             )
             .join(Product, Product.id == Order.product_id)
-            .filter(Order.status.in_(["paid", "created"]))
+            .filter(Order.status.in_(["pending", "paid"]))
         )
 
         # Если период задан — фильтруем так, чтобы учитывались:
@@ -519,68 +519,6 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
     buffer.seek(0)
     return buffer.read()
 
-# def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
-#     buffer = BytesIO()
-#     c = canvas.Canvas(buffer, pagesize=A4)
-#     width, height = A4
-
-#     y = height - 50
-
-#     # Заголовок
-#     c.setFont("Inter-Medium", 14)
-#     c.drawString(40, y, title)
-#     y -= 40
-
-#     # Шапка таблицы
-#     c.setFont("Inter-Medium", 10)
-#     c.drawString(60, y, "ID заказа")
-#     c.drawString(140, y, "Товар")
-#     c.drawString(200, y, "Кол-во")
-#     c.drawString(270, y, "Сумма ₽")
-#     c.drawString(330, y, "Дата")
-#     c.drawString(410, y, "Клиент") 
-#     y -= 15
-
-#     c.setFont("Inter-Medium", 9)
-
-#     for item in items:
-#         if y < 120:
-#             c.showPage()
-#             y = height - 50
-#             c.setFont("Inter-Medium", 9)
-
-#         # Основные колонки
-#         c.drawString(60, y, item["order_id"])
-#         c.drawString(140, y, item["product_title"])
-#         c.drawRightString(220, y, str(item["quantity"]))
-#         c.drawRightString(290, y, f"{item['total_amount']:,}".replace(",", " "))
-#         c.drawString(330, y, item["date"])
-        
-#         # Клиент (многострочно)
-#         client_y = y
-#         client_x = 410
-#         client = item["client"]
-
-#         if client.get("fullname"):
-#             c.drawString(client_x, client_y, client["fullname"])
-#             client_y -= 12
-#         if client.get("phone"):
-#             c.drawString(client_x, client_y, client["phone"])
-#             client_y -= 12
-#         if client.get("city"):
-#             c.drawString(client_x, client_y, client["city"])
-#             client_y -= 12
-#         if client.get("address"):
-#             c.drawString(client_x, client_y, client["address"])
-
-#         y -= 50  # высота строки
-
-#     c.showPage()
-#     c.save()
-#     buffer.seek(0)
-#     return buffer.read()
-
-
 @app.post("/api/reports/clients")
 def clients_report(payload: SalesReportIn):
     session = SessionLocal()
@@ -606,7 +544,7 @@ def clients_report(payload: SalesReportIn):
                 Product.title.label("product_title")
             )
             .join(Product, Product.id == Order.product_id)
-            .filter(Order.status == "created")
+            .filter(Order.status.in_(["pending", "paid"]))
         )
 
         if date_from:
@@ -682,7 +620,7 @@ def cancel_order(payload: CancelOrderIn):
             )
 
         # 2. Проверяем статус
-        if order.status != "created":
+        if order.status not in ("pending", "paid"):
             raise HTTPException(
                 status_code=400,
                 detail="Отменить можно только заказ со статусом created"
