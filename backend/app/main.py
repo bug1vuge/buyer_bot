@@ -437,12 +437,10 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
 
     y = height - 50
 
-    # ---------- НАСТРОЙКИ ----------
     LINE_HEIGHT = 12
     ROW_PADDING = 10
-    PRODUCT_COL_WIDTH = 55  # ширина колонки "Товар"
-    CLIENT_X = 410          # колонка "Клиент"
-    # --------------------------------
+    PRODUCT_COL_WIDTH = 55 
+    CLIENT_X = 410         
 
     # Заголовок
     c.setFont("Inter-Medium", 14)
@@ -519,8 +517,8 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
     buffer.seek(0)
     return buffer.read()
 
-@app.post("/api/reports/clients")
-def clients_report(payload: SalesReportIn):
+@app.post("/api/reports/sales")
+def sales_report(payload: SalesReportIn):
     session = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
@@ -537,11 +535,13 @@ def clients_report(payload: SalesReportIn):
             date_from = datetime.combine(payload.start_date, datetime.min.time(), tzinfo=timezone.utc)
             date_to = datetime.combine(payload.end_date, datetime.max.time(), tzinfo=timezone.utc)
 
-        # Запрос
+        # БАЗОВАЯ ВЫБОРКА — ИЗ orders
         query = (
             session.query(
-                Order,
-                Product.title.label("product_title")
+                Product.title.label("product_title"),
+                func.sum(Order.quantity).label("quantity"),
+                func.sum(Order.total_amount_cents).label("total_amount"),
+                func.sum(Order.agent_fee_cents).label("agent_fee"),
             )
             .join(Product, Product.id == Order.product_id)
             .filter(Order.status.in_(["pending", "paid"]))
@@ -552,54 +552,63 @@ def clients_report(payload: SalesReportIn):
         if date_to:
             query = query.filter(Order.created_at <= date_to)
 
-        rows = query.order_by(Order.created_at).all()
+        query = query.group_by(Product.title)
+
+        rows = query.all()
 
         items = []
-        for order, product_title in rows:
+        total_sum = 0
+        total_agent = 0
+
+        for r in rows:
+            qty = int(r.quantity or 0)
+            total_amount_rub = int((r.total_amount or 0) // 100)
+            agent_fee_rub = int((r.agent_fee or 0) // 100)
+
             items.append({
-                "order_id": order.order_id_str,
-                "product_title": product_title,
-                "quantity": order.quantity,
-                "total_amount": int(order.total_amount_cents // 100),
-                "date": order.created_at.strftime("%d.%m.%y") if order.created_at else "",
-                "client": {
-                    "fullname": order.customer_fullname,
-                    "phone": order.customer_phone,
-                    "city": order.customer_city,
-                    "address": order.customer_address,
-                }
+                "product_title": r.product_title,
+                "quantity": qty,
+                "total_amount": total_amount_rub,
+                "agent_fee": agent_fee_rub,
             })
+
+            total_sum += total_amount_rub
+            total_agent += agent_fee_rub
 
         # Заголовок
         if payload.period == "all":
-            title = "Отчёт по клиентам за всё время"
+            title = "Отчёт по продажам за всё время"
         elif payload.period:
-            title = f"Отчёт по клиентам за последние {payload.period} дней"
+            title = f"Отчёт по продажам за последние {payload.period} дней"
         else:
-            title = f"Отчёт по клиентам: {payload.start_date} - {payload.end_date}"
+            title = f"Отчёт по продажам: {payload.start_date} - {payload.end_date}"
 
         if not items:
             items = [{
-                "order_id": "Нет данных",
-                "product_title": "",
+                "product_title": "Нет данных за период",
                 "quantity": 0,
                 "total_amount": 0,
-                "date": "",
-                "client": {}
+                "agent_fee": 0
             }]
 
-        pdf_bytes = generate_clients_report_pdf(title, items)
+        pdf_bytes = generate_sales_report_pdf(
+            title=title,
+            items=items,
+            total_sum=total_sum,
+            total_agent=total_agent
+        )
 
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": "attachment; filename=clients_report.pdf"
+                "Content-Disposition": "attachment; filename=sales_report.pdf"
             }
         )
+
     finally:
         session.close()
-
+        
 # отмена заказа
 @app.post("/api/orders/cancel")
 def cancel_order(payload: CancelOrderIn):
