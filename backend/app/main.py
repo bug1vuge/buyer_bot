@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfbase.ttfonts import TTFont
 from io import BytesIO
 from datetime import datetime, timezone, timedelta, date
@@ -304,7 +305,7 @@ def sales_report(payload: SalesReportIn):
             date_from = datetime.combine(payload.start_date, datetime.min.time(), tzinfo=timezone.utc)
             date_to = datetime.combine(payload.end_date, datetime.max.time(), tzinfo=timezone.utc)
 
-        # Базовый запрос — учитываем заказы со статусом paid и created
+
         query = (
             session.query(
                 Product.title.label("product_title"),
@@ -326,21 +327,21 @@ def sales_report(payload: SalesReportIn):
                 conds.append(
                     or_(
                         and_(Order.status == "paid", Order.paid_at >= date_from, Order.paid_at <= date_to),
-                        and_(Order.status == "created", Order.created_at >= date_from, Order.created_at <= date_to),
+                        and_(Order.status == "pending", Order.created_at >= date_from, Order.created_at <= date_to),
                     )
                 )
             elif date_from:
                 conds.append(
                     or_(
                         and_(Order.status == "paid", Order.paid_at >= date_from),
-                        and_(Order.status == "created", Order.created_at >= date_from),
+                        and_(Order.status == "pending", Order.created_at >= date_from),
                     )
                 )
             elif date_to:
                 conds.append(
                     or_(
                         and_(Order.status == "paid", Order.paid_at <= date_to),
-                        and_(Order.status == "created", Order.created_at <= date_to),
+                        and_(Order.status == "pending", Order.created_at <= date_to),
                     )
                 )
 
@@ -405,12 +406,6 @@ def sales_report(payload: SalesReportIn):
         session.close()
 
 # генерация pdf клиентов
-from io import BytesIO
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.pdfbase.pdfmetrics import stringWidth
-
-
 def wrap_text(text: str, max_width: int, font: str, font_size: int) -> list[str]:
     words = text.split()
     lines = []
