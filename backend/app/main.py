@@ -515,10 +515,11 @@ def generate_clients_report_pdf(title: str, items: list[dict]) -> bytes:
 @app.post("/api/reports/clients")
 def clients_report(payload: SalesReportIn):
     session = SessionLocal()
+
     try:
         now = datetime.now(timezone.utc)
 
-        # Период
+        # -------- Период --------
         if payload.period:
             if payload.period == "all":
                 date_from = None
@@ -527,16 +528,22 @@ def clients_report(payload: SalesReportIn):
                 date_from = now - timedelta(days=int(payload.period))
                 date_to = now
         else:
-            date_from = datetime.combine(payload.start_date, datetime.min.time(), tzinfo=timezone.utc)
-            date_to = datetime.combine(payload.end_date, datetime.max.time(), tzinfo=timezone.utc)
+            date_from = datetime.combine(
+                payload.start_date,
+                datetime.min.time(),
+                tzinfo=timezone.utc
+            )
+            date_to = datetime.combine(
+                payload.end_date,
+                datetime.max.time(),
+                tzinfo=timezone.utc
+            )
 
-        # БАЗОВАЯ ВЫБОРКА — ИЗ orders
+        # -------- Запрос --------
         query = (
             session.query(
-                Product.title.label("product_title"),
-                func.sum(Order.quantity).label("quantity"),
-                func.sum(Order.total_amount_cents).label("total_amount"),
-                func.sum(Order.agent_fee_cents).label("agent_fee"),
+                Order,
+                Product.title.label("product_title")
             )
             .join(Product, Product.id == Order.product_id)
             .filter(Order.status.in_(["pending", "paid"]))
@@ -547,62 +554,59 @@ def clients_report(payload: SalesReportIn):
         if date_to:
             query = query.filter(Order.created_at <= date_to)
 
-        query = query.group_by(Product.title)
+        rows = query.order_by(Order.created_at).all()
 
-        rows = query.all()
-
+        # -------- Формирование данных --------
         items = []
-        total_sum = 0
-        total_agent = 0
 
-        for r in rows:
-            qty = int(r.quantity or 0)
-            total_amount_rub = int((r.total_amount or 0) // 100)
-            agent_fee_rub = int((r.agent_fee or 0) // 100)
-
+        for order, product_title in rows:
             items.append({
-                "product_title": r.product_title,
-                "quantity": qty,
-                "total_amount": total_amount_rub,
-                "agent_fee": agent_fee_rub,
+                "order_id": order.order_id_str,
+                "product_title": product_title,
+                "quantity": order.quantity,
+                "total_amount": int(order.total_amount_cents // 100),
+                "date": order.created_at.strftime("%d.%m.%y") if order.created_at else "",
+                "client": {
+                    "fullname": order.customer_fullname,
+                    "phone": order.customer_phone,
+                    "city": order.customer_city,
+                    "address": order.customer_address,
+                }
             })
 
-            total_sum += total_amount_rub
-            total_agent += agent_fee_rub
-
-        # Заголовок
+        # -------- Заголовок --------
         if payload.period == "all":
-            title = "Отчёт по продажам за всё время"
+            title = "Отчёт по клиентам за всё время"
         elif payload.period:
-            title = f"Отчёт по продажам за последние {payload.period} дней"
+            title = f"Отчёт по клиентам за последние {payload.period} дней"
         else:
-            title = f"Отчёт по продажам: {payload.start_date} - {payload.end_date}"
+            title = f"Отчёт по клиентам: {payload.start_date} - {payload.end_date}"
 
+        # -------- Если данных нет --------
         if not items:
             items = [{
-                "product_title": "Нет данных за период",
+                "order_id": "Нет данных",
+                "product_title": "",
                 "quantity": 0,
                 "total_amount": 0,
-                "agent_fee": 0
+                "date": "",
+                "client": {}
             }]
 
-        pdf_bytes = generate_sales_report_pdf(
-            title=title,
-            items=items,
-            total_sum=total_sum,
-            total_agent=total_agent
-        )
+        # -------- Генерация PDF --------
+        pdf_bytes = generate_clients_report_pdf(title, items)
 
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": "attachment; filename=sales_report.pdf"
+                "Content-Disposition": "attachment; filename=clients_report.pdf"
             }
         )
 
     finally:
         session.close()
+
         
 # отмена заказа
 @app.post("/api/orders/cancel")
