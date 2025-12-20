@@ -78,8 +78,6 @@ def api_create_order(payload: CreateOrderIn):
         ).count() + 1
         order_id_str = f"{today_str}_{seq:03d}"
 
-
-
         quantity = getattr(payload, "quantity", 1)
         base_amount = product.base_price_cents * quantity
         agent_fee = int(base_amount * product.agent_percent / 100)
