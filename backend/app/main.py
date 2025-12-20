@@ -784,64 +784,39 @@ def delete_sales_report(payload: DeleteSalesReportIn):
         session.close()
 
 # восстановление данных
-@app.post("/api/orders/archive/{order_id}/restore")
-def restore_order_from_archive(order_id: str):
-    session: Session = SessionLocal()
+@router.get("/api/orders/archive/{order_id}")
+def get_archived_order(order_id: str):
+    session = SessionLocal()
 
-    try:
-        archive = (
-            session.query(OrderArchive)
-            .filter(OrderArchive.original_order_id == order_id)
-            .first()
+    archive = (
+        session.query(OrdersArchive)
+        .filter(OrdersArchive.original_order_id == order_id)
+        .first()
+    )
+
+    if not archive:
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+
+    from datetime import datetime, timezone
+    if archive.restore_until < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=400,
+            detail="Срок восстановления заказа истёк"
         )
 
-        if not archive:
-            raise HTTPException(status_code=404, detail="Архив заказа не найден")
+    data = archive.data
 
-        if archive.restore_until < datetime.now(timezone.utc):
-            raise HTTPException(
-                status_code=400,
-                detail="Срок восстановления заказа истёк"
-            )
+    return {
+        "order_id": archive.original_order_id,
+        "product_title": data["product"]["title"],
+        "quantity": data["quantity"],
+        "total_amount": data["total_amount"],
+        "deleted_at": data["deleted_at"],
+        "client": {
+            "fullname": data["customer_fullname"]
+        }
+    }
 
-        order_data = archive.data["order"]
-        client_data = archive.data["client"]
-
-        # защита от повторного восстановления
-        exists = (
-            session.query(Order)
-            .filter(Order.order_id_str == order_data["order_id_str"])
-            .first()
-        )
-        if exists:
-            raise HTTPException(
-                status_code=400,
-                detail="Заказ уже существует в системе"
-            )
-
-        restored_order = Order(
-            order_id_str=order_data["order_id_str"],
-            product_id=order_data["product_id"],
-            quantity=order_data["quantity"],
-            total_amount_cents=order_data["total_amount_cents"],
-            agent_fee_cents=order_data["agent_fee_cents"],
-            status=order_data["status"],
-            created_at=datetime.fromisoformat(order_data["created_at"]),
-
-            customer_fullname=client_data["fullname"],
-            customer_phone=client_data["phone"],
-            customer_city=client_data["city"],
-            customer_address=client_data["address"]
-        )
-
-        session.add(restored_order)
-        session.delete(archive)
-        session.commit()
-
-        return {"message": f"Заказ {order_id} успешно восстановлен"}
-
-    finally:
-        session.close()
 
 @app.get("/api/reports/sales/archive/list")
 def list_sales_report_archives():
