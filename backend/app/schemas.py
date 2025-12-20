@@ -36,3 +36,8 @@ class SalesReportOut(BaseModel):
 
 class CancelOrderIn(BaseModel):
     order_id: str
+
+class DeleteSalesReportIn(BaseModel):
+    period: int | str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
