@@ -76,7 +76,7 @@ def api_create_order(payload: CreateOrderIn):
         seq = session.query(Order).filter(
             Order.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         ).count() + 1
-        order_id_str = f"{today_str}_{seq:04d}"
+        order_id_str = f"{today_str}_{seq:03d}"
 
 
 
