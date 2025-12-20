@@ -83,13 +83,3 @@ class SalesReportArchive(Base):
     data = Column(JSONB, nullable=False)  # агрегированные данные
     archived_at = Column(DateTime(timezone=True), server_default=func.now())
     restore_until = Column(DateTime(timezone=True), nullable=False)
-
-# class ClientsReportArchive(Base):
-#     __tablename__ = "clients_reports_archive"
-
-#     id = Column(Integer, primary_key=True)
-#     period_from = Column(DateTime, nullable=True)
-#     period_to = Column(DateTime, nullable=True)
-#     data = Column(JSONB, nullable=False)  # список клиентов и их данных
-#     archived_at = Column(DateTime(timezone=True), server_default=func.now())
-#     restore_until = Column(DateTime(timezone=True), nullable=False)
