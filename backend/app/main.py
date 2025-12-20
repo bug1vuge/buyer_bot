@@ -623,45 +623,43 @@ def cancel_order(payload: CancelOrderIn):
     session: Session = SessionLocal()
 
     try:
-        # 1. Ищем заказ
+        # 1) Найти заказ по правильному полю
         order = (
             session.query(Order)
-            .filter(Order.order_uid == payload.order_id)
+            .filter(Order.order_id_str == payload.order_id)
             .first()
         )
 
         if not order:
-            raise HTTPException(
-                status_code=404,
-                detail="Заказ не найден"
-            )
+            raise HTTPException(status_code=404, detail="Заказ не найден")
 
-        # 2. Проверяем статус
+        # 2) Проверка статуса — разрешаем отменять только pending или paid
         if order.status not in ("pending", "paid"):
             raise HTTPException(
                 status_code=400,
-                detail="Отменить можно только заказ со статусом created"
+                detail="Отменить можно только заказ со статусом pending или paid"
             )
 
-        # 3. Данные клиента
+        # 3) Собираем данные клиента (используем реальные имена колонок)
         client = {
-            "fullname": order.fullname,
-            "phone": order.phone,
-            "city": order.city,
-            "address": order.address
+            "fullname": order.customer_fullname,
+            "phone": order.customer_phone,
+            "city": order.customer_city,
+            "address": order.customer_address
         }
 
-        # 4. Архивирование
-        archive = OrdersArchive(
-            original_order_id=order.order_uid,
+        # 4) Сохраняем в архив (используем корректный класс OrderArchive и оригинальное поле)
+        archive = OrderArchive(
+            original_order_id=order.order_id_str,
             data={
                 "order": {
-                    "order_uid": order.order_uid,
+                    "order_id_str": order.order_id_str,
                     "product_id": order.product_id,
                     "quantity": order.quantity,
                     "total_amount_cents": order.total_amount_cents,
+                    "agent_fee_cents": order.agent_fee_cents,
                     "status": order.status,
-                    "created_at": order.created_at.isoformat()
+                    "created_at": order.created_at.isoformat() if order.created_at else None
                 },
                 "client": client
             },
@@ -670,11 +668,11 @@ def cancel_order(payload: CancelOrderIn):
 
         session.add(archive)
 
-        # 5. Удаление заказа
+        # 5) Удаляем заказ из основной таблицы
         session.delete(order)
         session.commit()
 
-        # 6. Ответ боту
+        # 6) Возвращаем ответ, который ожидает бот
         return JSONResponse(
             {
                 "message": f"Заказ с ID {payload.order_id} удален из системы",
@@ -686,6 +684,14 @@ def cancel_order(payload: CancelOrderIn):
             }
         )
 
+    except HTTPException:
+        session.rollback()
+        raise
+    except Exception as e:
+        session.rollback()
+        # Логирование ошибки полезно для диагностики (вставь свой logger)
+        # logger.exception("Error cancelling order")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         session.close()
 
