@@ -46,3 +46,9 @@ class DeleteSalesReportIn(BaseModel):
 #     period: int | str | None = None
 #     start_date: date | None = None
 #     end_date: date | None = None
+
+class RestoreOrderIn(BaseModel):
+    order_id: str
+
+class RestoreSalesReportIn(BaseModel):
+    archive_id: int
