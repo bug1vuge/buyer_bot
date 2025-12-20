@@ -21,6 +21,7 @@ from .tinkoff_client import create_tinkoff_payment, check_order, generate_token,
 from pathlib import Path
 from sqlalchemy import or_, and_
 import uuid
+import string
 
 # DATABASE
 DATABASE_URL = settings.DATABASE_URL
@@ -43,6 +44,33 @@ class CreateProductIn(BaseModel):
 
 class CreateProductOut(BaseModel):
     product_id: int
+
+def generate_unique_order_id(session, today_str: str):
+    # Получаем все order_id за сегодня
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    orders_today = session.query(Order.order_id_str).filter(Order.created_at >= today_start).all()
+    existing_ids = set(o[0] for o in orders_today)
+
+    # Начальная последовательность
+    seq = 1
+    while True:
+        base_id = f"{today_str}_{seq:03d}"
+        if base_id not in existing_ids:
+            order_id = base_id
+            break
+        # Если base_id уже существует, пробуем добавить суффикс a-z
+        for suffix in string.ascii_lowercase:
+            order_id_candidate = f"{base_id}{suffix}"
+            if order_id_candidate not in existing_ids:
+                order_id = order_id_candidate
+                break
+        else:
+            # Если все суффиксы заняты, увеличиваем seq
+            seq += 1
+            continue
+        break
+
+    return order_id
 
 @app.post("/api/products/create", response_model=CreateProductOut)
 def create_product(payload: CreateProductIn):
@@ -71,11 +99,15 @@ def api_create_order(payload: CreateOrderIn):
         if not product:
             raise HTTPException(status_code=404, detail="Product not found")
 
+        # today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+        # seq = session.query(Order).filter(
+        #     Order.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        # ).count() + 1
+        # order_id_str = f"{today_str}_{seq:03d}"
+
         today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-        seq = session.query(Order).filter(
-            Order.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        ).count() + 1
-        order_id_str = f"{today_str}_{seq:03d}"
+        order_id_str = generate_unique_order_id(session, today_str)
+
 
         quantity = getattr(payload, "quantity", 1)
         base_amount = product.base_price_cents * quantity
