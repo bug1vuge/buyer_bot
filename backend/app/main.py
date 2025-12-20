@@ -45,28 +45,6 @@ class CreateProductIn(BaseModel):
 class CreateProductOut(BaseModel):
     product_id: int
 
-def generate_order_id(session):
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-
-    # Получаем максимальный номер за сегодня
-    last_order = session.query(Order).filter(Order.created_at >= today_start)\
-                    .order_by(Order.order_id_str.desc()).first()
-    
-    if last_order:
-        # Берём последнюю часть после "_" и увеличиваем на 1
-        try:
-            last_seq = int(last_order.order_id_str.split("_")[1])
-        except (IndexError, ValueError):
-            last_seq = 0
-        seq = last_seq + 1
-    else:
-        seq = 1
-
-    order_id_str = f"{today_str}_{seq:03d}"
-    return order_id_str
-
-
 @app.post("/api/products/create", response_model=CreateProductOut)
 def create_product(payload: CreateProductIn):
     session = SessionLocal()
@@ -94,16 +72,12 @@ def api_create_order(payload: CreateOrderIn):
         if not product:
             raise HTTPException(status_code=404, detail="Product not found")
 
-        # today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-        # seq = session.query(Order).filter(
-        #     Order.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        # ).count() + 1
-        # order_id_str = f"{today_str}_{seq:03d}"
+        today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+        seq = session.query(Order).filter(
+            Order.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        ).count() + 1
+        order_id_str = f"{today_str}_{seq:04d}"
 
-        # today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-        # order_id_str = generate_unique_order_id(session, today_str)
-
-        order_id_str = generate_order_id(session)
 
 
         quantity = getattr(payload, "quantity", 1)
