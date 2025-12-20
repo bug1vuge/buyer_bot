@@ -649,7 +649,7 @@ def cancel_order(payload: CancelOrderIn):
         }
 
         # 4) Сохраняем в архив (используем корректный класс OrderArchive и оригинальное поле)
-        archive = OrderArchive(
+        archive = OrdersArchive(
             original_order_id=order.order_id_str,
             data={
                 "order": {
