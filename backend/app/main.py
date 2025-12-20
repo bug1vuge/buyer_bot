@@ -6,8 +6,8 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel
 from .config import settings
-from .models import Base, Product, Order, Admin, OrdersArchive
-from .schemas import CreateOrderIn, CreateOrderOut, SalesReportIn, SalesReportItem, SalesReportOut, CancelOrderIn
+from .models import Base, Product, Order, Admin, OrdersArchive, SalesReportArchive
+from .schemas import CreateOrderIn, CreateOrderOut, SalesReportIn, SalesReportItem, SalesReportOut, CancelOrderIn, DeleteSalesReportIn
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from reportlab.lib.pagesizes import A4
@@ -694,6 +694,94 @@ def cancel_order(payload: CancelOrderIn):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         session.close()
+
+# удаление отчета по продажам
+@app.post("/api/reports/sales/delete")
+def delete_sales_report(payload: DeleteSalesReportIn):
+    session: Session = SessionLocal()
+
+    try:
+        now = datetime.now(timezone.utc)
+
+        # -------- Период --------
+        if payload.period:
+            if payload.period == "all":
+                date_from = None
+                date_to = None
+            else:
+                date_from = now - timedelta(days=int(payload.period))
+                date_to = now
+        else:
+            date_from = datetime.combine(payload.start_date, datetime.min.time(), tzinfo=timezone.utc)
+            date_to = datetime.combine(payload.end_date, datetime.max.time(), tzinfo=timezone.utc)
+
+        # -------- Агрегация --------
+        report_rows = (
+            session.query(
+                Product.id.label("product_id"),
+                Product.title.label("product_title"),
+                func.sum(Order.quantity).label("quantity"),
+                func.sum(Order.total_amount_cents).label("total_amount"),
+                func.sum(Order.agent_fee_cents).label("agent_fee"),
+            )
+            .join(Product, Product.id == Order.product_id)
+            .filter(Order.status.in_(["pending", "paid"]))
+        )
+
+        if date_from:
+            report_rows = report_rows.filter(Order.created_at >= date_from)
+        if date_to:
+            report_rows = report_rows.filter(Order.created_at <= date_to)
+
+        report_rows = report_rows.group_by(Product.id, Product.title).all()
+
+        if not report_rows:
+            raise HTTPException(status_code=404, detail="Нет данных за выбранный период")
+
+        data = {
+            "items": [
+                {
+                    "product_id": r.product_id,
+                    "product_title": r.product_title,
+                    "quantity": int(r.quantity or 0),
+                    "total_amount_cents": int(r.total_amount or 0),
+                    "agent_fee_cents": int(r.agent_fee or 0),
+                }
+                for r in report_rows
+            ],
+            "total_sum_cents": sum(int(r.total_amount or 0) for r in report_rows),
+            "total_agent_cents": sum(int(r.agent_fee or 0) for r in report_rows),
+        }
+
+        # -------- Архив --------
+        archive = SalesReportArchive(
+            period_from=date_from,
+            period_to=date_to,
+            data=data,
+            restore_until=now + timedelta(days=30)
+        )
+        session.add(archive)
+
+        # -------- Удаление заказов --------
+        delete_q = session.query(Order).filter(Order.status.in_(["pending", "paid"]))
+
+        if date_from:
+            delete_q = delete_q.filter(Order.created_at >= date_from)
+        if date_to:
+            delete_q = delete_q.filter(Order.created_at <= date_to)
+
+        deleted_count = delete_q.delete(synchronize_session=False)
+
+        session.commit()
+
+        return {
+            "message": "Отчёт по продажам удалён",
+            "deleted_orders": deleted_count
+        }
+
+    finally:
+        session.close()
+
 
 # ==========================
 # RUN
