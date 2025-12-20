@@ -62,8 +62,6 @@ class Admin(Base):
     def __repr__(self):
         return f"<Admin telegram_id={self.telegram_id}>"
 
-
-
 class OrdersArchive(Base):
     __tablename__ = "orders_archive"
 
@@ -75,3 +73,14 @@ class OrdersArchive(Base):
 
     def __repr__(self):
         return f"<OrderArchive id={self.id} original_order_id={self.original_order_id!r}>"
+
+class SalesReportArchive(Base):
+    __tablename__ = "sales_reports_archive"
+
+    id = Column(Integer, primary_key=True)
+    period_from = Column(DateTime, nullable=True)
+    period_to = Column(DateTime, nullable=True)
+    data = Column(JSONB, nullable=False)  # агрегированные данные
+    archived_at = Column(DateTime(timezone=True), server_default=func.now())
+    restore_until = Column(DateTime(timezone=True), nullable=False)
+
