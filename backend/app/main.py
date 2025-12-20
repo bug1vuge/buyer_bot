@@ -45,32 +45,27 @@ class CreateProductIn(BaseModel):
 class CreateProductOut(BaseModel):
     product_id: int
 
-def generate_unique_order_id(session, today_str: str):
-    # Получаем все order_id за сегодня
+def generate_order_id(session):
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    orders_today = session.query(Order.order_id_str).filter(Order.created_at >= today_start).all()
-    existing_ids = set(o[0] for o in orders_today)
+    today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
 
-    # Начальная последовательность
-    seq = 1
-    while True:
-        base_id = f"{today_str}_{seq:03d}"
-        if base_id not in existing_ids:
-            order_id = base_id
-            break
-        # Если base_id уже существует, пробуем добавить суффикс a-z
-        for suffix in string.ascii_lowercase:
-            order_id_candidate = f"{base_id}{suffix}"
-            if order_id_candidate not in existing_ids:
-                order_id = order_id_candidate
-                break
-        else:
-            # Если все суффиксы заняты, увеличиваем seq
-            seq += 1
-            continue
-        break
+    # Получаем максимальный номер за сегодня
+    last_order = session.query(Order).filter(Order.created_at >= today_start)\
+                    .order_by(Order.order_id_str.desc()).first()
+    
+    if last_order:
+        # Берём последнюю часть после "_" и увеличиваем на 1
+        try:
+            last_seq = int(last_order.order_id_str.split("_")[1])
+        except (IndexError, ValueError):
+            last_seq = 0
+        seq = last_seq + 1
+    else:
+        seq = 1
 
-    return order_id
+    order_id_str = f"{today_str}_{seq:03d}"
+    return order_id_str
+
 
 @app.post("/api/products/create", response_model=CreateProductOut)
 def create_product(payload: CreateProductIn):
@@ -105,8 +100,10 @@ def api_create_order(payload: CreateOrderIn):
         # ).count() + 1
         # order_id_str = f"{today_str}_{seq:03d}"
 
-        today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-        order_id_str = generate_unique_order_id(session, today_str)
+        # today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+        # order_id_str = generate_unique_order_id(session, today_str)
+
+        order_id_str = generate_order_id(session)
 
 
         quantity = getattr(payload, "quantity", 1)
