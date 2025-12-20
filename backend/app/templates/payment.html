@@ -222,6 +222,10 @@
 const formSubmit = async (e) => {
     e.preventDefault();
 
+    const loader = document.querySelector('#loader');
+
+    loader.style.display = 'flex';
+
     const payload = {
         product_id: productId,
         fullname: document.getElementById('fullname').value,
@@ -240,10 +244,9 @@ const formSubmit = async (e) => {
     });
 
     const data = await res.json();
-
-    console.log("Tinkoff response:", data);
-
+  
     if (data.confirmation_url) {
+        loader.style.display = 'flex';
         window.location.href = data.confirmation_url;  // РЕДИРЕКТ
     } else {
         alert("Ошибка при создании платежа");
