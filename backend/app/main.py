@@ -697,91 +697,77 @@ def cancel_order(payload: CancelOrderIn):
         session.close()
 
 # удаление отчета по продажам
-@app.post("/api/reports/sales/delete")
-def delete_sales_report(payload: DeleteSalesReportIn):
-    session: Session = SessionLocal()
+@app.post("/api/reports/sales/archive")
+def archive_sales_report(period_from: datetime, period_to: datetime):
+    session = SessionLocal()
 
     try:
-        now = datetime.now(timezone.utc)
-
-        # -------- Период --------
-        if payload.period:
-            if payload.period == "all":
-                date_from = None
-                date_to = None
-            else:
-                date_from = now - timedelta(days=int(payload.period))
-                date_to = now
-        else:
-            date_from = datetime.combine(payload.start_date, datetime.min.time(), tzinfo=timezone.utc)
-            date_to = datetime.combine(payload.end_date, datetime.max.time(), tzinfo=timezone.utc)
-
-        # -------- Агрегация --------
-        report_rows = (
-            session.query(
-                Product.id.label("product_id"),
-                Product.title.label("product_title"),
-                func.sum(Order.quantity).label("quantity"),
-                func.sum(Order.total_amount_cents).label("total_amount"),
-                func.sum(Order.agent_fee_cents).label("agent_fee"),
+        orders = (
+            session.query(Order)
+            .filter(
+                Order.created_at >= period_from,
+                Order.created_at <= period_to,
+                Order.status != "cancelled"
             )
-            .join(Product, Product.id == Order.product_id)
-            .filter(Order.status.in_(["pending", "paid"]))
+            .all()
         )
 
-        if date_from:
-            report_rows = report_rows.filter(Order.created_at >= date_from)
-        if date_to:
-            report_rows = report_rows.filter(Order.created_at <= date_to)
+        if not orders:
+            raise HTTPException(
+                status_code=404,
+                detail="Нет заказов для архивации"
+            )
 
-        report_rows = report_rows.group_by(Product.id, Product.title).all()
+        archive_orders = []
 
-        if not report_rows:
-            raise HTTPException(status_code=404, detail="Нет данных за выбранный период")
-
-        data = {
-            "items": [
-                {
-                    "product_id": r.product_id,
-                    "product_title": r.product_title,
-                    "quantity": int(r.quantity or 0),
-                    "total_amount_cents": int(r.total_amount or 0),
-                    "agent_fee_cents": int(r.agent_fee or 0),
+        for o in orders:
+            archive_orders.append({
+                "order": {
+                    "order_id_str": o.order_id_str,
+                    "product_id": o.product_id,
+                    "quantity": o.quantity,
+                    "total_amount_cents": o.total_amount_cents,
+                    "agent_fee_cents": o.agent_fee_cents,
+                    "status": o.status,
+                    "yookassa_payment_id": o.yookassa_payment_id,
+                    "created_at": o.created_at.isoformat(),
+                    "paid_at": o.paid_at.isoformat() if o.paid_at else None,
+                    "deleted_at": o.deleted_at.isoformat() if o.deleted_at else None,
+                    "comment": o.comment,
+                },
+                "client": {
+                    "fullname": o.customer_fullname,
+                    "phone": o.customer_phone,
+                    "email": o.customer_email,
+                    "city": o.customer_city,
+                    "address": o.customer_address,
                 }
-                for r in report_rows
-            ],
-            "total_sum_cents": sum(int(r.total_amount or 0) for r in report_rows),
-            "total_agent_cents": sum(int(r.agent_fee or 0) for r in report_rows),
-        }
+            })
 
-        # -------- Архив --------
         archive = SalesReportArchive(
-            period_from=date_from,
-            period_to=date_to,
-            data=data,
-            restore_until=now + timedelta(days=30)
+            period_from=period_from,
+            period_to=period_to,
+            data={"orders": archive_orders},
+            archived_at=datetime.utcnow(),
+            restore_until=datetime.utcnow() + timedelta(days=30)
         )
+
         session.add(archive)
 
-        # -------- Удаление заказов --------
-        delete_q = session.query(Order).filter(Order.status.in_(["pending", "paid"]))
-
-        if date_from:
-            delete_q = delete_q.filter(Order.created_at >= date_from)
-        if date_to:
-            delete_q = delete_q.filter(Order.created_at <= date_to)
-
-        deleted_count = delete_q.delete(synchronize_session=False)
+        # физически удаляем заказы
+        for o in orders:
+            session.delete(o)
 
         session.commit()
 
         return {
-            "message": "Отчёт по продажам удалён",
-            "deleted_orders": deleted_count
+            "message": "Отчёт по продажам архивирован",
+            "orders_count": len(archive_orders)
         }
 
     finally:
         session.close()
+
 
 # восстановление данных
 @app.get("/api/orders/archive/{order_id}")
@@ -846,8 +832,8 @@ def list_sales_report_archives():
         session.close()
 
 @app.post("/api/reports/sales/archive/{archive_id}/restore")
-def restore_sales_report_from_archive(archive_id: int):
-    session: Session = SessionLocal()
+def restore_sales_report(archive_id: int):
+    session = SessionLocal()
 
     try:
         archive = (
@@ -857,48 +843,64 @@ def restore_sales_report_from_archive(archive_id: int):
         )
 
         if not archive:
-            raise HTTPException(status_code=404, detail="Архив отчёта не найден")
+            raise HTTPException(status_code=404, detail="Архив не найден")
 
+        from datetime import datetime, timezone
         if archive.restore_until < datetime.now(timezone.utc):
             raise HTTPException(
                 status_code=400,
-                detail="Срок восстановления отчёта истёк"
+                detail="Срок восстановления истёк"
             )
 
-        items = archive.data.get("items", [])
+        restored = 0
 
-        for item in items:
-            # уникальный ID для восстановленного заказа
-            order_uid = f"RESTORE_{archive.id}_{uuid.uuid4().hex[:8]}"
+        for item in archive.data["orders"]:
+            o = item["order"]
+            c = item["client"]
+
+            exists = (
+                session.query(Order)
+                .filter(Order.order_id_str == o["order_id_str"])
+                .first()
+            )
+            if exists:
+                continue
 
             order = Order(
-                order_id_str=order_uid,
-                product_id=item["product_id"],
-                quantity=item["quantity"],
-                total_amount_cents=item["total_amount_cents"],
-                agent_fee_cents=item["agent_fee_cents"],
-                status="restored",
-                created_at=archive.period_from,
+                order_id_str=o["order_id_str"],
+                product_id=o["product_id"],
+                quantity=o["quantity"],
+                total_amount_cents=o["total_amount_cents"],
+                agent_fee_cents=o["agent_fee_cents"],
+                status=o["status"],
+                yookassa_payment_id=o["yookassa_payment_id"],
+                created_at=datetime.fromisoformat(o["created_at"]),
+                paid_at=datetime.fromisoformat(o["paid_at"]) if o["paid_at"] else None,
+                deleted_at=datetime.fromisoformat(o["deleted_at"]) if o["deleted_at"] else None,
+                comment=o["comment"],
 
-                # так как клиентских данных нет — оставляем пустыми
-                customer_fullname=None,
-                customer_phone=None,
-                customer_city=None,
-                customer_address=None
+                customer_fullname=c["fullname"],
+                customer_phone=c["phone"],
+                customer_email=c["email"],
+                customer_city=c["city"],
+                customer_address=c["address"],
             )
 
             session.add(order)
+            restored += 1
 
         session.delete(archive)
         session.commit()
 
         return {
-            "message": "Отчёт по продажам успешно восстановлен",
-            "restored_orders": len(items)
+            "message": "Отчёт по продажам восстановлен",
+            "restored_orders": restored
         }
 
     finally:
         session.close()
+
+
 
 # ==========================
 # RUN
