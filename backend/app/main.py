@@ -6,8 +6,8 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel
 from .config import settings
-from .models import Base, Product, Order, Admin, OrdersArchive, SalesReportArchive
-from .schemas import CreateOrderIn, CreateOrderOut, SalesReportIn, SalesReportItem, SalesReportOut, CancelOrderIn, DeleteSalesReportIn
+from .models import Base, Product, Order, Admin, OrdersArchive, SalesReportArchive, ClientsReportArchive
+from .schemas import CreateOrderIn, CreateOrderOut, SalesReportIn, SalesReportItem, SalesReportOut, CancelOrderIn, DeleteSalesReportIn, DeleteClientsReportIn
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from reportlab.lib.pagesizes import A4
@@ -782,6 +782,86 @@ def delete_sales_report(payload: DeleteSalesReportIn):
     finally:
         session.close()
 
+@app.post("/api/reports/clients/delete")
+def delete_clients_report(payload: DeleteClientsReportIn):
+    session: Session = SessionLocal()
+
+    try:
+        now = datetime.now(timezone.utc)
+
+        # -------- Период --------
+        if payload.period:
+            if payload.period == "all":
+                date_from = None
+                date_to = None
+            else:
+                date_from = now - timedelta(days=int(payload.period))
+                date_to = now
+        else:
+            date_from = datetime.combine(payload.start_date, datetime.min.time(), tzinfo=timezone.utc)
+            date_to = datetime.combine(payload.end_date, datetime.max.time(), tzinfo=timezone.utc)
+
+        # -------- Получаем данные клиентов --------
+        query = session.query(Order).filter(Order.status.in_(["pending", "paid"]))
+
+        if date_from:
+            query = query.filter(Order.created_at >= date_from)
+        if date_to:
+            query = query.filter(Order.created_at <= date_to)
+
+        orders = query.all()
+
+        if not orders:
+            raise HTTPException(status_code=404, detail="Нет данных за выбранный период")
+
+        # -------- Формируем архивные данные --------
+        data = [
+            {
+                "order_id": o.order_id_str,
+                "customer_fullname": o.customer_fullname,
+                "customer_phone": o.customer_phone,
+                "customer_email": o.customer_email,
+                "customer_city": o.customer_city,
+                "customer_address": o.customer_address,
+                "comment": o.comment,
+                "product_id": o.product_id,
+                "quantity": o.quantity,
+                "total_amount_cents": o.total_amount_cents,
+                "agent_fee_cents": o.agent_fee_cents,
+                "status": o.status,
+                "created_at": o.created_at.isoformat(),
+                "paid_at": o.paid_at.isoformat() if o.paid_at else None
+            }
+            for o in orders
+        ]
+
+        archive = ClientsReportArchive(
+            period_from=date_from,
+            period_to=date_to,
+            data=data,
+            restore_until=now + timedelta(days=30)
+        )
+        session.add(archive)
+
+        # -------- Удаляем данные клиентов --------
+        delete_q = session.query(Order).filter(Order.status.in_(["pending", "paid"]))
+
+        if date_from:
+            delete_q = delete_q.filter(Order.created_at >= date_from)
+        if date_to:
+            delete_q = delete_q.filter(Order.created_at <= date_to)
+
+        deleted_count = delete_q.delete(synchronize_session=False)
+
+        session.commit()
+
+        return {
+            "message": "Отчёт по клиентам удалён",
+            "deleted_orders": deleted_count
+        }
+
+    finally:
+        session.close()
 
 # ==========================
 # RUN
