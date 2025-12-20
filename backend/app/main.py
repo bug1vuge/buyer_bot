@@ -784,7 +784,7 @@ def delete_sales_report(payload: DeleteSalesReportIn):
         session.close()
 
 # восстановление данных
-@router.get("/api/orders/archive/{order_id}")
+@app.get("/api/orders/archive/{order_id}")
 def get_archived_order(order_id: str):
     session = SessionLocal()
 
