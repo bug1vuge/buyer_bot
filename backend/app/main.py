@@ -782,6 +782,7 @@ def delete_sales_report(payload: DeleteSalesReportIn):
     finally:
         session.close()
 
+# удаление отчета по клиентам
 @app.post("/api/reports/clients/delete")
 def delete_clients_report(payload: DeleteClientsReportIn):
     session: Session = SessionLocal()
@@ -859,6 +860,156 @@ def delete_clients_report(payload: DeleteClientsReportIn):
             "message": "Отчёт по клиентам удалён",
             "deleted_orders": deleted_count
         }
+
+    finally:
+        session.close()
+
+# восстановление данных 
+# --- Восстановление отдельного заказа ---
+@app.post("/api/orders/archive/{order_id}/restore")
+def restore_order(order_id: str):
+    session: Session = SessionLocal()
+    try:
+        archive: OrdersArchive = session.query(OrdersArchive).filter(
+            OrdersArchive.original_order_id == order_id,
+            OrdersArchive.restore_until >= datetime.now(timezone.utc)
+        ).first()
+
+        if not archive:
+            raise HTTPException(status_code=404, detail="Заказ не найден в архиве или срок хранения истёк")
+
+        data = archive.data
+
+        # Проверка: если заказ уже есть, обновляем
+        order = session.query(Order).filter(Order.order_id_str == order_id).first()
+        if order:
+            for key, value in data.items():
+                setattr(order, key, value)
+        else:
+            order = Order(
+                order_id_str=data['order_id'],
+                product_id=data['product_id'],
+                quantity=data['quantity'],
+                total_amount_cents=data['total_amount_cents'],
+                agent_fee_cents=data['agent_fee_cents'],
+                customer_fullname=data['customer_fullname'],
+                customer_phone=data['customer_phone'],
+                customer_email=data['customer_email'],
+                customer_city=data['customer_city'],
+                customer_address=data['customer_address'],
+                comment=data.get('comment'),
+                status=data['status'],
+                created_at=datetime.fromisoformat(data['created_at']),
+                paid_at=datetime.fromisoformat(data['paid_at']) if data.get('paid_at') else None
+            )
+            session.add(order)
+
+        session.commit()
+        return {"message": f"Заказ {order_id} успешно восстановлен"}
+
+    finally:
+        session.close()
+
+
+# --- Получение списка архивов отчётов ---
+@app.get("/api/reports/sales/archive")
+def get_sales_archives():
+    session: Session = SessionLocal()
+    try:
+        archives = session.query(SalesReportArchive).filter(
+            SalesReportArchive.restore_until >= datetime.now(timezone.utc)
+        ).all()
+        return [{"id": a.id, "archived_at": a.archived_at.isoformat()} for a in archives]
+    finally:
+        session.close()
+
+
+@app.get("/api/reports/clients/archive")
+def get_clients_archives():
+    session: Session = SessionLocal()
+    try:
+        archives = session.query(ClientsReportArchive).filter(
+            ClientsReportArchive.restore_until >= datetime.now(timezone.utc)
+        ).all()
+        return [{"id": a.id, "archived_at": a.archived_at.isoformat()} for a in archives]
+    finally:
+        session.close()
+
+
+# --- Восстановление архива отчёта по продажам ---
+@app.post("/api/reports/sales/archive/{archive_id}/restore")
+def restore_sales_archive(archive_id: int):
+    session: Session = SessionLocal()
+    try:
+        archive: SalesReportArchive = session.query(SalesReportArchive).filter(
+            SalesReportArchive.id == archive_id,
+            SalesReportArchive.restore_until >= datetime.now(timezone.utc)
+        ).first()
+        if not archive:
+            raise HTTPException(status_code=404, detail="Архив не найден или срок хранения истёк")
+
+        # Восстанавливаем каждый заказ по данным в архиве
+        for item in archive.data['items']:
+            order = session.query(Order).filter(Order.id == item.get('order_id')).first()
+            if order:
+                # Если заказ существует — пропускаем или обновляем
+                continue
+
+            # Пример: создаём новый заказ с базовыми данными (только для отчёта)
+            new_order = Order(
+                product_id=item['product_id'],
+                quantity=item['quantity'],
+                total_amount_cents=item['total_amount_cents'],
+                agent_fee_cents=item['agent_fee_cents'],
+                status='archived',
+                created_at=archive.period_from or datetime.now(timezone.utc)
+            )
+            session.add(new_order)
+
+        session.commit()
+        return {"message": "Отчёт по продажам успешно восстановлен"}
+
+    finally:
+        session.close()
+
+
+# --- Восстановление архива отчёта по клиентам ---
+@app.post("/api/reports/clients/archive/{archive_id}/restore")
+def restore_clients_archive(archive_id: int):
+    session: Session = SessionLocal()
+    try:
+        archive: ClientsReportArchive = session.query(ClientsReportArchive).filter(
+            ClientsReportArchive.id == archive_id,
+            ClientsReportArchive.restore_until >= datetime.now(timezone.utc)
+        ).first()
+        if not archive:
+            raise HTTPException(status_code=404, detail="Архив не найден или срок хранения истёк")
+
+        for item in archive.data:
+            order = session.query(Order).filter(Order.order_id_str == item['order_id']).first()
+            if order:
+                continue
+
+            new_order = Order(
+                order_id_str=item['order_id'],
+                product_id=item['product_id'],
+                quantity=item['quantity'],
+                total_amount_cents=item['total_amount_cents'],
+                agent_fee_cents=item['agent_fee_cents'],
+                customer_fullname=item['customer_fullname'],
+                customer_phone=item['customer_phone'],
+                customer_email=item['customer_email'],
+                customer_city=item['customer_city'],
+                customer_address=item['customer_address'],
+                comment=item.get('comment'),
+                status=item['status'],
+                created_at=datetime.fromisoformat(item['created_at']),
+                paid_at=datetime.fromisoformat(item['paid_at']) if item.get('paid_at') else None
+            )
+            session.add(new_order)
+
+        session.commit()
+        return {"message": "Отчёт по клиентам успешно восстановлен"}
 
     finally:
         session.close()
