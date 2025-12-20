@@ -42,7 +42,7 @@ class DeleteSalesReportIn(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
 
-class DeleteClientsReportIn(BaseModel):
-    period: int | str | None = None
-    start_date: date | None = None
-    end_date: date | None = None
+# class DeleteClientsReportIn(BaseModel):
+#     period: int | str | None = None
+#     start_date: date | None = None
+#     end_date: date | None = None
