@@ -864,6 +864,134 @@ def delete_sales_report(payload: DeleteSalesReportIn):
 #     finally:
 #         session.close()
 
+# восстановление данных
+@app.post("/api/orders/restore")
+def restore_order(payload: RestoreOrderIn):
+    session: Session = SessionLocal()
+
+    try:
+        archive = (
+            session.query(OrderArchive)
+            .filter(OrderArchive.original_order_id == payload.order_id)
+            .first()
+        )
+
+        if not archive:
+            raise HTTPException(status_code=404, detail="Архив заказа не найден")
+
+        # проверка срока хранения
+        if archive.restore_until < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=400,
+                detail="Срок восстановления заказа истёк"
+            )
+
+        order_data = archive.data["order"]
+        client_data = archive.data["client"]
+
+        # защита от дубликатов
+        exists = (
+            session.query(Order)
+            .filter(Order.order_id_str == order_data["order_uid"])
+            .first()
+        )
+        if exists:
+            raise HTTPException(
+                status_code=400,
+                detail="Заказ уже существует в системе"
+            )
+
+        restored_order = Order(
+            order_id_str=order_data["order_uid"],
+            product_id=order_data["product_id"],
+            quantity=order_data["quantity"],
+            total_amount_cents=order_data["total_amount_cents"],
+            status=order_data["status"],
+            created_at=datetime.fromisoformat(order_data["created_at"]),
+
+            customer_fullname=client_data["fullname"],
+            customer_phone=client_data["phone"],
+            customer_city=client_data["city"],
+            customer_address=client_data["address"]
+        )
+
+        session.add(restored_order)
+        session.delete(archive)
+        session.commit()
+
+        return {
+            "message": f"Заказ {payload.order_id} успешно восстановлен"
+        }
+
+    finally:
+        session.close()
+
+@app.get("/api/reports/sales/archive/list")
+def list_sales_report_archives():
+    session: Session = SessionLocal()
+
+    try:
+        archives = (
+            session.query(SalesReportArchive)
+            .order_by(SalesReportArchive.archived_at.desc())
+            .all()
+        )
+
+        now = datetime.now(timezone.utc)
+
+        result = []
+        for a in archives:
+            if a.restore_until < now:
+                continue
+
+            result.append({
+                "id": a.id,
+                "period_from": a.period_from,
+                "period_to": a.period_to,
+                "archived_at": a.archived_at
+            })
+
+        return result
+
+    finally:
+        session.close()
+
+@app.post("/api/reports/sales/restore")
+def restore_sales_report(payload: RestoreSalesReportIn):
+    session: Session = SessionLocal()
+
+    try:
+        archive = (
+            session.query(SalesReportArchive)
+            .filter(SalesReportArchive.id == payload.archive_id)
+            .first()
+        )
+
+        if not archive:
+            raise HTTPException(status_code=404, detail="Архив не найден")
+
+        if archive.restore_until < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=400,
+                detail="Срок восстановления отчёта истёк"
+            )
+
+        data = archive.data  # агрегированные данные
+
+        # ⚠️ ВАЖНО:
+        # Тут НЕТ физического восстановления строк,
+        # потому что отчёт — агрегат.
+        # Мы просто считаем его снова доступным.
+
+        session.delete(archive)
+        session.commit()
+
+        return {
+            "message": "Отчёт по продажам успешно восстановлен"
+        }
+
+    finally:
+        session.close()
 
 
 # ==========================
