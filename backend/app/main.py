@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel
 from .config import settings
-from .models import Base, Product, Order
+from .models import Base, Product, Order, Admin, OrdersArchive
 from .schemas import CreateOrderIn, CreateOrderOut, SalesReportIn, SalesReportItem, SalesReportOut, CancelOrderIn
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
