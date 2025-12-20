@@ -64,7 +64,7 @@ class Admin(Base):
 
 
 
-class OrderArchive(Base):
+class OrdersArchive(Base):
     __tablename__ = "orders_archive"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
