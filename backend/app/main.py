@@ -979,7 +979,6 @@ def list_sales_report_archives():
 @app.post("/api/reports/sales/archive/{archive_id}/restore")
 def restore_sales_report(archive_id: int):
     session = SessionLocal()
-
     try:
         archive = (
             session.query(SalesReportArchive)
@@ -990,56 +989,65 @@ def restore_sales_report(archive_id: int):
         if not archive:
             raise HTTPException(status_code=404, detail="Архив не найден")
 
-        from datetime import datetime, timezone
-        if archive.restore_until < datetime.now(timezone.utc):
-            raise HTTPException(
-                status_code=400,
-                detail="Срок восстановления истёк"
-            )
+        now = datetime.now(timezone.utc)
+        if archive.restore_until < now:
+            raise HTTPException(status_code=400, detail="Срок восстановления истёк")
 
-        restored = 0
+        restored_orders = 0
 
-        for item in archive.data["orders"]:
-            o = item["order"]
-            c = item["client"]
+        for item in archive.data.get("orders", []):
+            o_data = item["order"]
+            c_data = item["client"]
 
-            exists = (
-                session.query(Order)
-                .filter(Order.order_id_str == o["order_id_str"])
-                .first()
-            )
-            if exists:
-                continue
+            # --- Проверяем наличие продукта ---
+            product = session.query(Product).filter(Product.id == o_data["product_id"]).first()
+            if not product:
+                # Если продукта нет, создаём временно заглушку с базовой информацией
+                product = Product(
+                    id=o_data["product_id"],
+                    title=f"Восстановленный продукт #{o_data['product_id']}",
+                    base_price_cents=o_data["total_amount_cents"],
+                    agent_percent=0,
+                    created_at=datetime.now(timezone.utc)
+                )
+                session.add(product)
+                session.flush()  # чтобы получить id для foreign key
 
+            # --- Проверяем, есть ли уже такой заказ ---
+            existing_order = session.query(Order).filter(Order.order_id_str == o_data["order_id_str"]).first()
+            if existing_order:
+                continue  # пропускаем повторный восстановленный заказ
+
+            # --- Вставляем заказ ---
             order = Order(
-                order_id_str=o["order_id_str"],
-                product_id=o["product_id"],
-                quantity=o["quantity"],
-                total_amount_cents=o["total_amount_cents"],
-                agent_fee_cents=o["agent_fee_cents"],
-                status=o["status"],
-                yookassa_payment_id=o["yookassa_payment_id"],
-                created_at=datetime.fromisoformat(o["created_at"]),
-                paid_at=datetime.fromisoformat(o["paid_at"]) if o["paid_at"] else None,
-                deleted_at=datetime.fromisoformat(o["deleted_at"]) if o["deleted_at"] else None,
-                comment=o["comment"],
+                order_id_str=o_data["order_id_str"],
+                product_id=product.id,
+                quantity=o_data["quantity"],
+                total_amount_cents=o_data["total_amount_cents"],
+                agent_fee_cents=o_data["agent_fee_cents"],
+                status=o_data["status"],
+                yookassa_payment_id=o_data.get("yookassa_payment_id"),
+                created_at=datetime.fromisoformat(o_data["created_at"]) if o_data.get("created_at") else now,
+                paid_at=datetime.fromisoformat(o_data["paid_at"]) if o_data.get("paid_at") else None,
+                deleted_at=datetime.fromisoformat(o_data["deleted_at"]) if o_data.get("deleted_at") else None,
+                comment=o_data.get("comment"),
 
-                customer_fullname=c["fullname"],
-                customer_phone=c["phone"],
-                customer_email=c["email"],
-                customer_city=c["city"],
-                customer_address=c["address"],
+                customer_fullname=c_data.get("fullname"),
+                customer_phone=c_data.get("phone"),
+                customer_email=c_data.get("email"),
+                customer_city=c_data.get("city"),
+                customer_address=c_data.get("address"),
             )
-
             session.add(order)
-            restored += 1
+            restored_orders += 1
 
+        # --- Удаляем архив после успешного восстановления ---
         session.delete(archive)
         session.commit()
 
         return {
             "message": "Отчёт по продажам восстановлен",
-            "restored_orders": restored
+            "restored_orders": restored_orders
         }
 
     finally:
