@@ -95,6 +95,11 @@ def build_paid_message(order, product) -> str:
     )
 
 def send_admin_notification(text: str):
+
+    print("TG TOKEN:", settings.TELEGRAM_BOT_TOKEN)
+    print("TG ADMIN_CHAT_ID:", settings.ADMIN_CHAT_ID)
+
+    
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": settings.ADMIN_CHAT_ID,
