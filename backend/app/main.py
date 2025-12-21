@@ -64,6 +64,27 @@ def create_product(payload: CreateProductIn):
 # ==========================
 # CREATE ORDER + INIT PAYMENT
 # ==========================
+def generate_order_id(session: Session) -> str:
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+
+    seq_row = (
+        session.query(OrderSequence)
+        .filter(OrderSequence.date == today)
+        .with_for_update()
+        .first()
+    )
+
+    if not seq_row:
+        seq_row = OrderSequence(date=today, last_seq=1)
+        session.add(seq_row)
+        seq = 1
+    else:
+        seq_row.last_seq += 1
+        seq = seq_row.last_seq
+
+    return f"{today}_{seq:03d}"
+
+
 @app.post("/api/orders/create", response_model=CreateOrderOut)
 def api_create_order(payload: CreateOrderIn):
     session = SessionLocal()
@@ -72,11 +93,13 @@ def api_create_order(payload: CreateOrderIn):
         if not product:
             raise HTTPException(status_code=404, detail="Product not found")
 
-        today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-        seq = session.query(Order).filter(
-            Order.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        ).count() + 1
-        order_id_str = f"{today_str}_{seq:03d}"
+        # today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+        # seq = session.query(Order).filter(
+        #     Order.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        # ).count() + 1
+        # order_id_str = f"{today_str}_{seq:03d}"
+
+        order_id_str = generate_order_id(session)
 
         quantity = getattr(payload, "quantity", 1)
         base_amount = product.base_price_cents * quantity
