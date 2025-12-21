@@ -206,6 +206,34 @@ async def tinkoff_webhook(request: Request):
             message = build_paid_message(order, product)
             send_admin_notification(message)
 
+        # # 5. Успешная оплата (ТОЛЬКО финальные статусы)
+        # if status in ("confirmed", "completed", "success"):
+        #     order.status = "paid"
+        #     order.paid_at = datetime.now(timezone.utc)
+        #     session.commit()
+        
+        #     product = session.query(Product).filter(
+        #         Product.id == order.product_id
+        #     ).first()
+        
+        #     message = build_paid_message(order, product)
+        #     send_admin_notification(message)
+        
+        # # 6. Промежуточный статус — ничего не делаем
+        # elif status == "pending":
+        #     # можно сохранить как pending, если нужно
+        #     order.status = "pending"
+        #     session.commit()
+        
+        # # 7. Неуспешные статусы
+        # elif status in (
+        #     "reversed", "refunded", "failed",
+        #     "declined", "rejected", "canceled", "cancelled"
+        # ):
+        #     order.status = "cancelled"
+        #     session.commit()
+
+        
 
         # 6. Неуспешные статусы
         elif status in (
