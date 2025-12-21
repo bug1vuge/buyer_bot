@@ -150,22 +150,6 @@ def pay_page(request: Request, product_id: int):
 # ==========================
 # TINKOFF WEBHOOK
 # ==========================
-# @app.post("/api/tinkoff/webhook")
-# async def tinkoff_webhook(request: Request):
-#     payload = await request.json()
-
-#     received_token = payload.get("Token")
-#     if not received_token:
-#         return JSONResponse({"ok": False, "detail": "Token missing"}, status_code=400)
-
-#     calc_token = generate_token(payload, settings.TINKOFF_PASSWORD)
-
-#     if calc_token != received_token:
-#         return JSONResponse(
-#             {"ok": False, "detail": "Invalid token"},
-#             status_code=400
-#         )
-
 @app.post("/api/tinkoff/webhook")
 async def tinkoff_webhook(request: Request):
     payload = await request.json()
@@ -634,83 +618,6 @@ def clients_report(payload: SalesReportIn):
 
         
 # отмена заказа
-# @app.post("/api/orders/cancel")
-# def cancel_order(payload: CancelOrderIn):
-#     session: Session = SessionLocal()
-
-#     try:
-#         # 1) Найти заказ по правильному полю
-#         order = (
-#             session.query(Order)
-#             .filter(Order.order_id_str == payload.order_id)
-#             .first()
-#         )
-
-#         if not order:
-#             raise HTTPException(status_code=404, detail="Заказ не найден")
-
-#         # 2) Проверка статуса — разрешаем отменять только pending или paid
-#         if order.status not in ("pending", "paid"):
-#             raise HTTPException(
-#                 status_code=400,
-#                 detail="Отменить можно только заказ со статусом pending или paid"
-#             )
-
-#         # 3) Собираем данные клиента (используем реальные имена колонок)
-#         client = {
-#             "fullname": order.customer_fullname,
-#             "phone": order.customer_phone,
-#             "city": order.customer_city,
-#             "address": order.customer_address
-#         }
-
-#         # 4) Сохраняем в архив (используем корректный класс OrderArchive и оригинальное поле)
-#         archive = OrdersArchive(
-#             original_order_id=order.order_id_str,
-#             data={
-#                 "order": {
-#                     "order_id_str": order.order_id_str,
-#                     "product_id": order.product_id,
-#                     "quantity": order.quantity,
-#                     "total_amount_cents": order.total_amount_cents,
-#                     "agent_fee_cents": order.agent_fee_cents,
-#                     "status": order.status,
-#                     "created_at": order.created_at.isoformat() if order.created_at else None
-#                 },
-#                 "client": client
-#             },
-#             restore_until=datetime.now(timezone.utc) + timedelta(days=30)
-#         )
-
-#         session.add(archive)
-
-#         # 5) Удаляем заказ из основной таблицы
-#         session.delete(order)
-#         session.commit()
-
-#         # 6) Возвращаем ответ, который ожидает бот
-#         return JSONResponse(
-#             {
-#                 "message": f"Заказ с ID {payload.order_id} удален из системы",
-#                 "refund": {
-#                     "amount": f"{order.total_amount_cents // 100:,}".replace(",", " "),
-#                     "client": client["fullname"],
-#                     "phone": client["phone"]
-#                 }
-#             }
-#         )
-
-#     except HTTPException:
-#         session.rollback()
-#         raise
-#     except Exception as e:
-#         session.rollback()
-#         # Логирование ошибки полезно для диагностики (вставь свой logger)
-#         # logger.exception("Error cancelling order")
-#         raise HTTPException(status_code=500, detail=str(e))
-#     finally:
-#         session.close()
-
 @app.post("/api/orders/cancel")
 def cancel_order(payload: CancelOrderIn):
     session: Session = SessionLocal()
@@ -942,89 +849,6 @@ def get_archived_order(order_id: str):
 
     finally:
         session.close()
-
-# @app.post("/api/orders/archive/{order_id}/restore")
-# def restore_archived_order(order_id: str):
-#     session = SessionLocal()
-#     try:
-#         archive = session.query(OrdersArchive).filter(
-#             OrdersArchive.original_order_id == order_id
-#         ).first()
-
-#         if not archive:
-#             raise HTTPException(status_code=404, detail="Заказ не найден")
-
-#         from datetime import datetime, timezone
-#         if archive.restore_until < datetime.now(timezone.utc):
-#             raise HTTPException(
-#                 status_code=400,
-#                 detail="Срок восстановления заказа истёк"
-#             )
-
-#         data = archive.data
-#         order_data = data.get("order", {})
-#         client_data = data.get("client", {})
-
-#         # ---------- Восстановление продукта ----------
-#         product_id = order_data.get("product_id")
-#         product = None
-#         if product_id:
-#             product = session.query(Product).filter(Product.id == product_id).first()
-
-#         if not product:
-#             # создаём новый продукт, если его нет
-#             product = Product(
-#                 id=product_id,  # можно использовать старый id
-#                 title=order_data.get("product_title", "Восстановленный продукт"),
-#                 base_price_cents=order_data.get("total_amount_cents", 0) // max(order_data.get("quantity", 1), 1),
-#                 agent_percent=0  # можно оставить 0 или задавать по логике
-#             )
-#             session.add(product)
-#             session.flush()  # чтобы получить product.id если нужно
-
-#         # ---------- Проверка, чтобы не создавать дубли ----------
-#         existing_order = session.query(Order).filter(
-#             Order.order_id_str == archive.original_order_id
-#         ).first()
-
-#         if existing_order:
-#             raise HTTPException(status_code=400, detail="Заказ уже восстановлен")
-
-#         # ---------- Восстановление заказа ----------
-#         order = Order(
-#             order_id_str=archive.original_order_id,
-#             product_id=product.id,
-#             quantity=order_data.get("quantity", 1),
-#             total_amount_cents=order_data.get("total_amount_cents", 0),
-#             agent_fee_cents=order_data.get("agent_fee_cents", 0),
-#             status=order_data.get("status", "created"),
-#             created_at=datetime.fromisoformat(order_data["created_at"]) if order_data.get("created_at") else datetime.now(timezone.utc),
-#             paid_at=datetime.fromisoformat(order_data["paid_at"]) if order_data.get("paid_at") else None,
-#             deleted_at=None,  # заказ восстановлен
-#             comment=order_data.get("comment"),
-
-#             customer_fullname=client_data.get("fullname"),
-#             customer_phone=client_data.get("phone"),
-#             customer_email=client_data.get("email"),
-#             customer_city=client_data.get("city"),
-#             customer_address=client_data.get("address")
-#         )
-
-#         session.add(order)
-
-#         # ---------- Удаляем архив ----------
-#         session.delete(archive)
-#         session.commit()
-
-#         return {
-#             "message": "Заказ успешно восстановлен",
-#             "order_id": order.order_id_str,
-#             "product_id": product.id,
-#             "product_title": product.title
-#         }
-
-#     finally:
-#         session.close()
 
 @app.post("/api/orders/archive/{order_id}/restore")
 def restore_archived_order(order_id: str):
