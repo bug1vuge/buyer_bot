@@ -3,8 +3,7 @@ import hashlib
 from .config import settings
 import logging
 import json
-import asyncio
-from telegram import Bot
+
 
 logger = logging.getLogger(__name__)
 
@@ -96,20 +95,17 @@ def build_paid_message(order, product) -> str:
         f"Адрес: {order.customer_address}"
     )
 
-# def send_admin_notification(text: str):    
-#     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
-#     payload = {
-#         "chat_id": settings.ADMIN_CHAT_ID,
-#         "text": text
-#     }
+def send_admin_notification(text: str):    
+    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": settings.ADMIN_CHAT_ID,
+        "text": text
+    }
 
-#     resp = requests.post(url, json=payload, timeout=10)
+    resp = requests.post(url, json=payload, timeout=10)
     
-#     if not resp.ok:
-#         logger.error("Telegram send error: %s", resp.text)
+    if not resp.ok:
+        logger.error("Telegram send error: %s", resp.text)
 
-async def send_admin_notification(text: str):    
-    bot = Bot({settings.TELEGRAM_BOT_TOKEN})
-    await bot.send_message(chat_id={settings.ADMIN_CHAT_ID}, text={text})
     
 
