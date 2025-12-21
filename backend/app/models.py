@@ -83,3 +83,9 @@ class SalesReportArchive(Base):
     data = Column(JSONB, nullable=False)  # агрегированные данные
     archived_at = Column(DateTime(timezone=True), server_default=func.now())
     restore_until = Column(DateTime(timezone=True), nullable=False)
+
+class OrderSequence(Base):
+    __tablename__ = "order_sequence"
+
+    date = Column(String(8), primary_key=True)  # YYYYMMDD
+    last_seq = Column(Integer, nullable=False)
