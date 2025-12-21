@@ -915,6 +915,58 @@ def delete_sales_report(payload: DeleteSalesReportIn):
 
 
 # восстановление данных
+# @app.get("/api/orders/archive/{order_id}")
+# def get_archived_order(order_id: str):
+#     session = SessionLocal()
+#     try:
+#         archive = session.query(OrdersArchive).filter(
+#             OrdersArchive.original_order_id == order_id
+#         ).first()
+
+#         if not archive:
+#             raise HTTPException(status_code=404, detail="Заказ не найден")
+
+#         from datetime import datetime, timezone
+#         if archive.restore_until < datetime.now(timezone.utc):
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail="Срок восстановления заказа истёк"
+#             )
+
+#         data = archive.data
+#         order_data = data.get("order", {})
+#         client_data = data.get("client", {})
+
+#         # Получаем название товара из products
+#         product_title = None
+#         if order_data.get("product_id"):
+#             product = session.query(Product).filter(
+#                 Product.id == order_data["product_id"]
+#             ).first()
+#             if product:
+#                 product_title = product.title
+
+#         return {
+#             "order_id": archive.original_order_id,
+#             "product_id": order_data.get("product_id"),
+#             "product_title": product_title,
+#             "quantity": order_data.get("quantity"),
+#             "total_amount": order_data.get("total_amount_cents"),
+#             "deleted_at": order_data.get("deleted_at"),
+#             "created_at": order_data.get("created_at"),
+#             "status": order_data.get("status"),
+#             "client": {
+#                 "fullname": client_data.get("fullname"),
+#                 "phone": client_data.get("phone"),
+#                 "email": client_data.get("email"),
+#                 "city": client_data.get("city"),
+#                 "address": client_data.get("address")
+#             }
+#         }
+
+#     finally:
+#         session.close()
+
 @app.get("/api/orders/archive/{order_id}")
 def get_archived_order(order_id: str):
     session = SessionLocal()
@@ -945,6 +997,8 @@ def get_archived_order(order_id: str):
             ).first()
             if product:
                 product_title = product.title
+            else:
+                product_title = "Продукт удалён"
 
         return {
             "order_id": archive.original_order_id,
@@ -966,6 +1020,90 @@ def get_archived_order(order_id: str):
 
     finally:
         session.close()
+
+@app.post("/api/orders/archive/{order_id}/restore")
+def restore_archived_order(order_id: str):
+    session = SessionLocal()
+    try:
+        archive = session.query(OrdersArchive).filter(
+            OrdersArchive.original_order_id == order_id
+        ).first()
+
+        if not archive:
+            raise HTTPException(status_code=404, detail="Заказ не найден")
+
+        from datetime import datetime, timezone
+        if archive.restore_until < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=400,
+                detail="Срок восстановления заказа истёк"
+            )
+
+        data = archive.data
+        order_data = data.get("order", {})
+        client_data = data.get("client", {})
+
+        # ---------- Восстановление продукта ----------
+        product_id = order_data.get("product_id")
+        product = None
+        if product_id:
+            product = session.query(Product).filter(Product.id == product_id).first()
+
+        if not product:
+            # создаём новый продукт, если его нет
+            product = Product(
+                id=product_id,  # можно использовать старый id
+                title=order_data.get("product_title", "Восстановленный продукт"),
+                base_price_cents=order_data.get("total_amount_cents", 0) // max(order_data.get("quantity", 1), 1),
+                agent_percent=0  # можно оставить 0 или задавать по логике
+            )
+            session.add(product)
+            session.flush()  # чтобы получить product.id если нужно
+
+        # ---------- Проверка, чтобы не создавать дубли ----------
+        existing_order = session.query(Order).filter(
+            Order.order_id_str == archive.original_order_id
+        ).first()
+
+        if existing_order:
+            raise HTTPException(status_code=400, detail="Заказ уже восстановлен")
+
+        # ---------- Восстановление заказа ----------
+        order = Order(
+            order_id_str=archive.original_order_id,
+            product_id=product.id,
+            quantity=order_data.get("quantity", 1),
+            total_amount_cents=order_data.get("total_amount_cents", 0),
+            agent_fee_cents=order_data.get("agent_fee_cents", 0),
+            status=order_data.get("status", "created"),
+            created_at=datetime.fromisoformat(order_data["created_at"]) if order_data.get("created_at") else datetime.now(timezone.utc),
+            paid_at=datetime.fromisoformat(order_data["paid_at"]) if order_data.get("paid_at") else None,
+            deleted_at=None,  # заказ восстановлен
+            comment=order_data.get("comment"),
+
+            customer_fullname=client_data.get("fullname"),
+            customer_phone=client_data.get("phone"),
+            customer_email=client_data.get("email"),
+            customer_city=client_data.get("city"),
+            customer_address=client_data.get("address")
+        )
+
+        session.add(order)
+
+        # ---------- Удаляем архив ----------
+        session.delete(archive)
+        session.commit()
+
+        return {
+            "message": "Заказ успешно восстановлен",
+            "order_id": order.order_id_str,
+            "product_id": product.id,
+            "product_title": product.title
+        }
+
+    finally:
+        session.close()
+
 
 
 
