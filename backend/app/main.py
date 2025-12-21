@@ -937,9 +937,19 @@ def get_archived_order(order_id: str):
         order_data = data.get("order", {})
         client_data = data.get("client", {})
 
+        # Получаем название товара из products
+        product_title = None
+        if order_data.get("product_id"):
+            product = session.query(Product).filter(
+                Product.id == order_data["product_id"]
+            ).first()
+            if product:
+                product_title = product.title
+
         return {
             "order_id": archive.original_order_id,
             "product_id": order_data.get("product_id"),
+            "product_title": product_title,
             "quantity": order_data.get("quantity"),
             "total_amount": order_data.get("total_amount_cents"),
             "deleted_at": order_data.get("deleted_at"),
