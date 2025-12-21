@@ -73,10 +73,23 @@ def api_create_order(payload: CreateOrderIn):
             raise HTTPException(status_code=404, detail="Product not found")
 
         today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-        seq = session.query(Order).filter(
-            Order.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        ).count() + 1
+        # seq = session.query(Order).filter(
+        #     Order.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        # ).count() + 1
+        # order_id_str = f"{today_str}_{seq:03d}"
+
+        seq_entry = session.query(OrderSequence).filter(OrderSequence.date == today_str).first()
+        if not seq_entry:
+            seq_entry = OrderSequence(date=today_str, last_seq=1)
+            session.add(seq_entry)
+            seq = 1
+        else:
+            seq_entry.last_seq += 1
+            seq = seq_entry.last_seq
+        session.commit()
+        
         order_id_str = f"{today_str}_{seq:03d}"
+
 
 
         quantity = getattr(payload, "quantity", 1)
