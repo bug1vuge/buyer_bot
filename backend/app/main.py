@@ -22,7 +22,6 @@ from pathlib import Path
 from sqlalchemy import or_, and_
 import uuid
 import string
-import asyncio
 
 # DATABASE
 DATABASE_URL = settings.DATABASE_URL
@@ -205,7 +204,7 @@ async def tinkoff_webhook(request: Request):
             ).first()
         
             message = build_paid_message(order, product)
-            asyncio.run(send_admin_notification(message))
+            send_admin_notification(message)
             
 
         # 6. Неуспешные статусы
