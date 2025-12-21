@@ -698,6 +698,92 @@ def cancel_order(payload: CancelOrderIn):
         session.close()
 
 # удаление отчета по продажам
+# @app.post("/api/reports/sales/delete")
+# def delete_sales_report(payload: DeleteSalesReportIn):
+#     session: Session = SessionLocal()
+
+#     try:
+#         now = datetime.now(timezone.utc)
+
+#         # -------- Период --------
+#         if payload.period:
+#             if payload.period == "all":
+#                 date_from = None
+#                 date_to = None
+#             else:
+#                 date_from = now - timedelta(days=int(payload.period))
+#                 date_to = now
+#         else:
+#             date_from = datetime.combine(payload.start_date, datetime.min.time(), tzinfo=timezone.utc)
+#             date_to = datetime.combine(payload.end_date, datetime.max.time(), tzinfo=timezone.utc)
+
+#         # -------- Агрегация --------
+#         report_rows = (
+#             session.query(
+#                 Product.id.label("product_id"),
+#                 Product.title.label("product_title"),
+#                 func.sum(Order.quantity).label("quantity"),
+#                 func.sum(Order.total_amount_cents).label("total_amount"),
+#                 func.sum(Order.agent_fee_cents).label("agent_fee"),
+#             )
+#             .join(Product, Product.id == Order.product_id)
+#             .filter(Order.status.in_(["pending", "paid"]))
+#         )
+
+#         if date_from:
+#             report_rows = report_rows.filter(Order.created_at >= date_from)
+#         if date_to:
+#             report_rows = report_rows.filter(Order.created_at <= date_to)
+
+#         report_rows = report_rows.group_by(Product.id, Product.title).all()
+
+#         if not report_rows:
+#             raise HTTPException(status_code=404, detail="Нет данных за выбранный период")
+
+#         data = {
+#             "items": [
+#                 {
+#                     "product_id": r.product_id,
+#                     "product_title": r.product_title,
+#                     "quantity": int(r.quantity or 0),
+#                     "total_amount_cents": int(r.total_amount or 0),
+#                     "agent_fee_cents": int(r.agent_fee or 0),
+#                 }
+#                 for r in report_rows
+#             ],
+#             "total_sum_cents": sum(int(r.total_amount or 0) for r in report_rows),
+#             "total_agent_cents": sum(int(r.agent_fee or 0) for r in report_rows),
+#         }
+
+#         # -------- Архив --------
+#         archive = SalesReportArchive(
+#             period_from=date_from,
+#             period_to=date_to,
+#             data=data,
+#             restore_until=now + timedelta(days=30)
+#         )
+#         session.add(archive)
+
+#         # -------- Удаление заказов --------
+#         delete_q = session.query(Order).filter(Order.status.in_(["pending", "paid"]))
+
+#         if date_from:
+#             delete_q = delete_q.filter(Order.created_at >= date_from)
+#         if date_to:
+#             delete_q = delete_q.filter(Order.created_at <= date_to)
+
+#         deleted_count = delete_q.delete(synchronize_session=False)
+
+#         session.commit()
+
+#         return {
+#             "message": "Отчёт по продажам удалён",
+#             "deleted_orders": deleted_count
+#         }
+
+#     finally:
+#         session.close()
+# удаление отчета по продажам
 @app.post("/api/reports/sales/delete")
 def delete_sales_report(payload: DeleteSalesReportIn):
     session: Session = SessionLocal()
@@ -705,7 +791,7 @@ def delete_sales_report(payload: DeleteSalesReportIn):
     try:
         now = datetime.now(timezone.utc)
 
-        # -------- Период --------
+        # ---------- Период ----------
         if payload.period:
             if payload.period == "all":
                 date_from = None
@@ -714,71 +800,97 @@ def delete_sales_report(payload: DeleteSalesReportIn):
                 date_from = now - timedelta(days=int(payload.period))
                 date_to = now
         else:
-            date_from = datetime.combine(payload.start_date, datetime.min.time(), tzinfo=timezone.utc)
-            date_to = datetime.combine(payload.end_date, datetime.max.time(), tzinfo=timezone.utc)
-
-        # -------- Агрегация --------
-        report_rows = (
-            session.query(
-                Product.id.label("product_id"),
-                Product.title.label("product_title"),
-                func.sum(Order.quantity).label("quantity"),
-                func.sum(Order.total_amount_cents).label("total_amount"),
-                func.sum(Order.agent_fee_cents).label("agent_fee"),
+            date_from = datetime.combine(
+                payload.start_date,
+                datetime.min.time(),
+                tzinfo=timezone.utc
             )
-            .join(Product, Product.id == Order.product_id)
-            .filter(Order.status.in_(["pending", "paid"]))
+            date_to = datetime.combine(
+                payload.end_date,
+                datetime.max.time(),
+                tzinfo=timezone.utc
+            )
+
+        # ---------- Заказы для удаления ----------
+        orders_q = session.query(Order).filter(
+            Order.status.in_(["pending", "paid"])
         )
 
         if date_from:
-            report_rows = report_rows.filter(Order.created_at >= date_from)
+            orders_q = orders_q.filter(Order.created_at >= date_from)
         if date_to:
-            report_rows = report_rows.filter(Order.created_at <= date_to)
+            orders_q = orders_q.filter(Order.created_at <= date_to)
 
-        report_rows = report_rows.group_by(Product.id, Product.title).all()
+        orders = orders_q.all()
 
-        if not report_rows:
-            raise HTTPException(status_code=404, detail="Нет данных за выбранный период")
+        if not orders:
+            raise HTTPException(
+                status_code=404,
+                detail="Нет данных за выбранный период"
+            )
 
-        data = {
-            "items": [
-                {
-                    "product_id": r.product_id,
-                    "product_title": r.product_title,
-                    "quantity": int(r.quantity or 0),
-                    "total_amount_cents": int(r.total_amount or 0),
-                    "agent_fee_cents": int(r.agent_fee or 0),
+        # ---------- Формирование архива ----------
+        archived_orders = []
+
+        total_sum = 0
+        total_agent = 0
+
+        for o in orders:
+            archived_orders.append({
+                "order": {
+                    "order_id_str": o.order_id_str,
+                    "product_id": o.product_id,
+                    "quantity": o.quantity,
+                    "total_amount_cents": o.total_amount_cents,
+                    "agent_fee_cents": o.agent_fee_cents,
+                    "status": o.status,
+                    "yookassa_payment_id": o.yookassa_payment_id,
+                    "created_at": o.created_at.isoformat() if o.created_at else None,
+                    "paid_at": o.paid_at.isoformat() if o.paid_at else None,
+                    "deleted_at": None,
+                    "comment": o.comment,
+                },
+                "client": {
+                    "fullname": o.customer_fullname,
+                    "phone": o.customer_phone,
+                    "email": o.customer_email,
+                    "city": o.customer_city,
+                    "address": o.customer_address,
                 }
-                for r in report_rows
-            ],
-            "total_sum_cents": sum(int(r.total_amount or 0) for r in report_rows),
-            "total_agent_cents": sum(int(r.agent_fee or 0) for r in report_rows),
+            })
+
+            total_sum += o.total_amount_cents or 0
+            total_agent += o.agent_fee_cents or 0
+
+        archive_data = {
+            "orders": archived_orders,
+            "totals": {
+                "total_sum_cents": total_sum,
+                "total_agent_cents": total_agent
+            }
         }
 
-        # -------- Архив --------
         archive = SalesReportArchive(
             period_from=date_from,
             period_to=date_to,
-            data=data,
+            data=archive_data,
+            archived_at=now,
             restore_until=now + timedelta(days=30)
         )
+
         session.add(archive)
 
-        # -------- Удаление заказов --------
-        delete_q = session.query(Order).filter(Order.status.in_(["pending", "paid"]))
-
-        if date_from:
-            delete_q = delete_q.filter(Order.created_at >= date_from)
-        if date_to:
-            delete_q = delete_q.filter(Order.created_at <= date_to)
-
-        deleted_count = delete_q.delete(synchronize_session=False)
+        # ---------- Удаление заказов ----------
+        for o in orders:
+            o.deleted_at = now
+            o.status = "archived"
+            session.delete(o)
 
         session.commit()
 
         return {
             "message": "Отчёт по продажам удалён",
-            "deleted_orders": deleted_count
+            "deleted_orders": len(orders)
         }
 
     finally:
