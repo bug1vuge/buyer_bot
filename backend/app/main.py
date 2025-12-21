@@ -64,7 +64,7 @@ def create_product(payload: CreateProductIn):
 # ==========================
 # CREATE ORDER + INIT PAYMENT
 # ==========================
-def generate_order_id(session: Session) -> str:
+def generate_order_id(session) -> str:
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
 
     seq_row = (
