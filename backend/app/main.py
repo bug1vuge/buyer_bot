@@ -204,6 +204,8 @@ async def tinkoff_webhook(request: Request):
             ).first()
         
             message = build_paid_message(order, product)
+            print(message)
+            print("sending notification")
             send_admin_notification(message)
             
 
