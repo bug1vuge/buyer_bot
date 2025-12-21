@@ -918,35 +918,45 @@ def delete_sales_report(payload: DeleteSalesReportIn):
 @app.get("/api/orders/archive/{order_id}")
 def get_archived_order(order_id: str):
     session = SessionLocal()
+    try:
+        archive = session.query(OrdersArchive).filter(
+            OrdersArchive.original_order_id == order_id
+        ).first()
 
-    archive = (
-        session.query(OrdersArchive)
-        .filter(OrdersArchive.original_order_id == order_id)
-        .first()
-    )
+        if not archive:
+            raise HTTPException(status_code=404, detail="Заказ не найден")
 
-    if not archive:
-        raise HTTPException(status_code=404, detail="Заказ не найден")
+        from datetime import datetime, timezone
+        if archive.restore_until < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=400,
+                detail="Срок восстановления заказа истёк"
+            )
 
-    from datetime import datetime, timezone
-    if archive.restore_until < datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=400,
-            detail="Срок восстановления заказа истёк"
-        )
+        data = archive.data
+        order_data = data.get("order", {})
+        client_data = data.get("client", {})
 
-    data = archive.data
-
-    return {
-        "order_id": archive.original_order_id,
-        "product_title": data["product"]["title"],
-        "quantity": data["quantity"],
-        "total_amount": data["total_amount"],
-        "deleted_at": data["deleted_at"],
-        "client": {
-            "fullname": data["customer_fullname"]
+        return {
+            "order_id": archive.original_order_id,
+            "product_id": order_data.get("product_id"),
+            "quantity": order_data.get("quantity"),
+            "total_amount": order_data.get("total_amount_cents"),
+            "deleted_at": order_data.get("deleted_at"),
+            "created_at": order_data.get("created_at"),
+            "status": order_data.get("status"),
+            "client": {
+                "fullname": client_data.get("fullname"),
+                "phone": client_data.get("phone"),
+                "email": client_data.get("email"),
+                "city": client_data.get("city"),
+                "address": client_data.get("address")
+            }
         }
-    }
+
+    finally:
+        session.close()
+
 
 
 @app.get("/api/reports/sales/archive/list")
