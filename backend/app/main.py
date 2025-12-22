@@ -1,6 +1,6 @@
 import uvicorn
 import os
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
@@ -239,7 +239,7 @@ def pay_page(request: Request, product_id: int):
 #         session.close()
 
 @app.post("/api/tinkoff/webhook")
-async def tinkoff_webhook(request: Request):
+async def tinkoff_webhook(request: Request, background_tasks: BackgroundTasks):
     payload = await request.json()
 
     received_token = payload.get("Token")
@@ -285,7 +285,9 @@ async def tinkoff_webhook(request: Request):
             ).first()
         
             message = build_paid_message(order, product)
-            send_admin_notification(message)
+            # send_admin_notification(message)
+
+            background_tasks.add_task(send_telegram_background, message)
         
         elif status in FAIL_STATUSES:
             order.status = "cancelled"
