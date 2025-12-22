@@ -239,7 +239,7 @@ def pay_page(request: Request, product_id: int):
 #         session.close()
 
 @app.post("/api/tinkoff/webhook")
-async def tinkoff_webhook(request: Request, background_tasks: BackgroundTasks):
+async def tinkoff_webhook(request: Request):
     payload = await request.json()
 
     received_token = payload.get("Token")
@@ -285,9 +285,7 @@ async def tinkoff_webhook(request: Request, background_tasks: BackgroundTasks):
             ).first()
         
             message = build_paid_message(order, product)
-            # send_admin_notification(message)
-
-            background_tasks.add_task(send_telegram_background, message)
+            send_admin_notification(message)
         
         elif status in FAIL_STATUSES:
             order.status = "cancelled"
