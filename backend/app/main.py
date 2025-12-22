@@ -258,6 +258,10 @@ async def tinkoff_webhook(request: Request):
     order_id = payload.get("OrderId")
     status = (payload.get("Status") or "").upper()
 
+    logger.info("Payment id", str(payment_id))
+    logger.info("Status", str(status))
+
+
     session = SessionLocal()
     try:
         order = None
