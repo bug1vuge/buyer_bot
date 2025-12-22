@@ -239,6 +239,65 @@ def pay_page(request: Request, product_id: int):
 #     finally:
 #         session.close()
 
+# @app.post("/api/tinkoff/webhook")
+# async def tinkoff_webhook(request: Request):
+#     payload = await request.json()
+
+#     received_token = payload.get("Token")
+#     if not received_token:
+#         return {"ok": True}
+
+#     calc_token = generate_token(payload, settings.TINKOFF_PASSWORD)
+#     if calc_token != received_token:
+#         return {"ok": True}
+
+#     payment_id = payload.get("PaymentId")
+#     order_id = payload.get("OrderId")
+#     status = (payload.get("Status") or "").upper()
+
+#     session = SessionLocal()
+#     try:
+#         order = None
+
+#         if payment_id:
+#             order = session.query(Order).filter(
+#                 Order.yookassa_payment_id == str(payment_id)
+#             ).first()
+
+#         if not order and order_id:
+#             order = session.query(Order).filter(
+#                 Order.order_id_str == str(order_id)
+#             ).first()
+
+#         if not order:
+#             return {"ok": True}
+
+#         # идемпотентность
+#         if order.status == "paid":
+#             return {"ok": True}
+        
+#         if status in FINAL_SUCCESS_STATUSES:
+#             order.status = "paid"
+#             order.paid_at = datetime.now(timezone.utc)
+#             session.commit()
+        
+#             product = session.query(Product).filter(
+#                 Product.id == order.product_id
+#             ).first()
+        
+#             message = build_paid_message(order, product)
+#             send_admin_notification(message)
+        
+#         elif status in FAIL_STATUSES:
+#             order.status = "cancelled"
+#             session.commit()
+        
+#         # AUTHORIZED / PENDING — просто игнорируем
+#         return {"ok": True}
+
+#     finally:
+#         session.close()
+
 @app.post("/api/tinkoff/webhook")
 async def tinkoff_webhook(request: Request):
     payload = await request.json()
@@ -258,41 +317,44 @@ async def tinkoff_webhook(request: Request):
     session = SessionLocal()
     try:
         order = None
-
         if payment_id:
             order = session.query(Order).filter(
                 Order.yookassa_payment_id == str(payment_id)
             ).first()
-
         if not order and order_id:
             order = session.query(Order).filter(
                 Order.order_id_str == str(order_id)
             ).first()
-
         if not order:
             return {"ok": True}
 
         # идемпотентность
         if order.status == "paid":
             return {"ok": True}
+
+        # PAYMENT_AUTHORIZED — временная блокировка, ничего не делаем кроме логирования
+        if status == "PAYMENT_AUTHORIZED":
+            order.status = "authorized"
+            session.commit()
+            print(f"Order {order.order_id_str} authorized, waiting for complete")
         
-        if status in FINAL_SUCCESS_STATUSES:
+        # COMPLETE — финальная успешная оплата
+        elif status == "COMPLETE":
             order.status = "paid"
             order.paid_at = datetime.now(timezone.utc)
             session.commit()
-        
-            product = session.query(Product).filter(
-                Product.id == order.product_id
-            ).first()
-        
+
+            product = session.query(Product).filter(Product.id == order.product_id).first()
             message = build_paid_message(order, product)
             send_admin_notification(message)
-        
-        elif status in FAIL_STATUSES:
+            print(f"Order {order.order_id_str} completed, notification sent")
+
+        # FAILED — оплата не прошла
+        elif status == "FAILED":
             order.status = "cancelled"
             session.commit()
-        
-        # AUTHORIZED / PENDING — просто игнорируем
+            print(f"Order {order.order_id_str} failed, cancelled")
+
         return {"ok": True}
 
     finally:
