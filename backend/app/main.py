@@ -253,9 +253,6 @@ def pay_page(request: Request, product_id: int):
 async def tinkoff_webhook(request: Request):
     payload = await request.json()
 
-    print("=== TINKOFF WEBHOOK HIT ===")
-    print(payload)
-
     received_token = payload.get("Token")
     if not received_token:
         return {"ok": True}
@@ -267,10 +264,6 @@ async def tinkoff_webhook(request: Request):
     payment_id = payload.get("PaymentId")
     order_id = payload.get("OrderId")
     status = (payload.get("Status") or "").upper()
-
-    logger.info("Payment id", str(payment_id))
-    logger.info("Status", str(status))
-
 
     session = SessionLocal()
     try:
