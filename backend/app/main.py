@@ -77,8 +77,11 @@ def api_create_order(payload: CreateOrderIn):
         #     Order.created_at >= datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         # ).count() + 1
         # order_id_str = f"{today_str}_{seq:03d}"
-        today_str = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y%m%d")
+        # today_str = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y%m%d")
+
+        today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
         seq_entry = session.query(OrderSequence).filter(OrderSequence.date == today_str).first()
+        
         if not seq_entry:
             seq_entry = OrderSequence(date=today_str, last_seq=1)
             session.add(seq_entry)
@@ -150,6 +153,78 @@ def pay_page(request: Request, product_id: int):
 # ==========================
 # TINKOFF WEBHOOK
 # ==========================
+# @app.post("/api/tinkoff/webhook")
+# async def tinkoff_webhook(request: Request):
+#     payload = await request.json()
+
+#     print("=== TINKOFF WEBHOOK HIT ===")
+#     print(payload)
+
+#     # 1. Проверка токена
+#     received_token = payload.get("Token")
+#     if not received_token:
+#         return JSONResponse({"ok": False, "detail": "Token missing"}, status_code=400)
+
+#     calc_token = generate_token(payload, settings.TINKOFF_PASSWORD)
+#     if calc_token != received_token:
+#         return JSONResponse({"ok": False, "detail": "Invalid token"}, status_code=400)
+
+#     # 2. Получаем данные из webhook
+#     payment_id = payload.get("PaymentId")
+#     order_id = payload.get("OrderId")
+#     status = (payload.get("Status") or "").lower()
+    
+#     session = SessionLocal()
+#     try:
+#         # 3. Ищем заказ
+#         order = None
+
+#         if payment_id:
+#             order = session.query(Order).filter(
+#                 Order.yookassa_payment_id == str(payment_id)
+#             ).first()
+
+#         if not order and order_id:
+#             order = session.query(Order).filter(
+#                 Order.order_id_str == str(order_id)
+#             ).first()
+
+#         if not order:
+#             return JSONResponse({"ok": False, "detail": "Order not found"}, status_code=404)
+
+#         # 4. Защита от повторных webhook
+#         if order.status == "paid":
+#             return {"ok": True}
+        
+#         # 5. Успешная оплата
+#         if status in ("confirmed", "completed", "authorized", "success", "pending"):
+#             order.status = "paid"
+#             order.paid_at = datetime.now(timezone.utc)
+#             session.commit()
+        
+#             product = session.query(Product).filter(
+#                 Product.id == order.product_id
+#             ).first()
+        
+#             message = build_paid_message(order, product)
+#             print(message)
+#             print("sending notification")
+#             send_admin_notification(message)
+            
+
+#         # 6. Неуспешные статусы
+#         elif status in (
+#             "reversed", "refunded", "failed",
+#             "declined", "rejected", "canceled", "cancelled"
+#         ):
+#             order.status = "cancelled"
+#             session.commit()
+
+#         return {"ok": True}
+
+#     finally:
+#         session.close()
+
 @app.post("/api/tinkoff/webhook")
 async def tinkoff_webhook(request: Request):
     payload = await request.json()
@@ -157,23 +232,20 @@ async def tinkoff_webhook(request: Request):
     print("=== TINKOFF WEBHOOK HIT ===")
     print(payload)
 
-    # 1. Проверка токена
     received_token = payload.get("Token")
     if not received_token:
-        return JSONResponse({"ok": False, "detail": "Token missing"}, status_code=400)
+        return {"ok": True}
 
     calc_token = generate_token(payload, settings.TINKOFF_PASSWORD)
     if calc_token != received_token:
-        return JSONResponse({"ok": False, "detail": "Invalid token"}, status_code=400)
+        return {"ok": True}
 
-    # 2. Получаем данные из webhook
     payment_id = payload.get("PaymentId")
     order_id = payload.get("OrderId")
-    status = (payload.get("Status") or "").lower()
-    
+    status = (payload.get("Status") or "").upper()
+
     session = SessionLocal()
     try:
-        # 3. Ищем заказ
         order = None
 
         if payment_id:
@@ -187,33 +259,26 @@ async def tinkoff_webhook(request: Request):
             ).first()
 
         if not order:
-            return JSONResponse({"ok": False, "detail": "Order not found"}, status_code=404)
+            return {"ok": True}
 
-        # 4. Защита от повторных webhook
+        # идемпотентность
         if order.status == "paid":
             return {"ok": True}
-        
-        # 5. Успешная оплата
-        if status in ("confirmed", "completed", "authorized", "success", "pending"):
+
+        # ТОЛЬКО финальный статус
+        if status == "CONFIRMED":
             order.status = "paid"
             order.paid_at = datetime.now(timezone.utc)
             session.commit()
-        
+
             product = session.query(Product).filter(
                 Product.id == order.product_id
             ).first()
-        
-            message = build_paid_message(order, product)
-            print(message)
-            print("sending notification")
-            send_admin_notification(message)
-            
 
-        # 6. Неуспешные статусы
-        elif status in (
-            "reversed", "refunded", "failed",
-            "declined", "rejected", "canceled", "cancelled"
-        ):
+            message = build_paid_message(order, product)
+            send_admin_notification(message)
+
+        elif status in ("REJECTED", "FAILED", "CANCELLED"):
             order.status = "cancelled"
             session.commit()
 
@@ -221,6 +286,7 @@ async def tinkoff_webhook(request: Request):
 
     finally:
         session.close()
+
 
 
 
