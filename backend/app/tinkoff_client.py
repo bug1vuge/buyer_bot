@@ -107,7 +107,7 @@ def build_paid_message(order, product) -> str:
 #     if not resp.ok:
 #         logger.error("Telegram send error: %s", resp.text)
 
-def send_telegram_background(message: str):
+def send_admin_notification(message: str):
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {"chat_id": settings.ADMIN_CHAT_ID, "text": message}
     try:
