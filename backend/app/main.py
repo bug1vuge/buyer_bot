@@ -23,16 +23,6 @@ from sqlalchemy import or_, and_
 import uuid
 import string
 
-import logging
-
-# Настройка базового логгера
-logging.basicConfig(
-    level=logging.INFO,  # или DEBUG, если хотите видеть все логи
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
-
-logger = logging.getLogger(__name__)
-
 # DATABASE
 DATABASE_URL = settings.DATABASE_URL
 engine = create_engine(DATABASE_URL, future=True)
