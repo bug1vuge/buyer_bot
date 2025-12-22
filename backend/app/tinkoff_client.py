@@ -95,27 +95,20 @@ def build_paid_message(order, product) -> str:
         f"Адрес: {order.customer_address}"
     )
 
-# def send_admin_notification(text: str):    
-#     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
-#     payload = {
-#         "chat_id": settings.ADMIN_CHAT_ID,
-#         "text": text
-#     }
-
-#     resp = requests.post(url, json=payload, timeout=10)
-    
-#     if not resp.ok:
-#         logger.error("Telegram send error: %s", resp.text)
-
-def send_admin_notification(message: str):
+def send_admin_notification(text: str):    
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": settings.ADMIN_CHAT_ID, "text": message}
-    try:
-        resp = requests.post(url, json=payload, timeout=10)
-        if not resp.ok:
-            print("Telegram send error:", resp.text)
-    except Exception as e:
-        print("Telegram request failed:", e)
+    payload = {
+        "chat_id": settings.ADMIN_CHAT_ID,
+        "text": text
+    }
+
+    resp = requests.post(url, json=payload, timeout=10)
+
+    logger.info(resp)
+    
+    if not resp.ok:
+        logger.error("Telegram send error: %s", resp.text)
+
 
     
 
