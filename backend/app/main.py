@@ -45,6 +45,25 @@ class CreateProductIn(BaseModel):
 class CreateProductOut(BaseModel):
     product_id: int
 
+FINAL_SUCCESS_STATUSES = {
+    "CONFIRMED",
+    "COMPLETED",
+    "SUCCESS",
+}
+
+INTERMEDIATE_STATUSES = {
+    "AUTHORIZED",
+    "PENDING",
+}
+
+FAIL_STATUSES = {
+    "REJECTED",
+    "FAILED",
+    "CANCELLED",
+    "CANCELED",
+}
+
+
 @app.post("/api/products/create", response_model=CreateProductOut)
 def create_product(payload: CreateProductIn):
     session = SessionLocal()
@@ -92,8 +111,6 @@ def api_create_order(payload: CreateOrderIn):
         session.commit()
         
         order_id_str = f"{today_str}_{seq:03d}"
-
-
 
         quantity = getattr(payload, "quantity", 1)
         base_amount = product.base_price_cents * quantity
@@ -264,24 +281,24 @@ async def tinkoff_webhook(request: Request):
         # идемпотентность
         if order.status == "paid":
             return {"ok": True}
-
-        # ТОЛЬКО финальный статус
-        if status == "CONFIRMED":
+        
+        if status in FINAL_SUCCESS_STATUSES:
             order.status = "paid"
             order.paid_at = datetime.now(timezone.utc)
             session.commit()
-
+        
             product = session.query(Product).filter(
                 Product.id == order.product_id
             ).first()
-
+        
             message = build_paid_message(order, product)
             send_admin_notification(message)
-
-        elif status in ("REJECTED", "FAILED", "CANCELLED"):
+        
+        elif status in FAIL_STATUSES:
             order.status = "cancelled"
             session.commit()
-
+        
+        # AUTHORIZED / PENDING — просто игнорируем
         return {"ok": True}
 
     finally:
