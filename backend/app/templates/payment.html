@@ -11,9 +11,9 @@
     <header class="header">
       <div class="container">
         <div class="header__inner">
-          <p class="header__title">Товар - {{ product.title }}</p>
+          <p class="header__title">📦 {{ product.title }}</p>
           <p class="header__price">
-            Итого к оплате:
+            💳 Итого к оплате:
             <span>
               {{ '%.2f' % ((product.base_price_cents + (product.base_price_cents * product.agent_percent / 100)) / 100) }} ₽
             </span>
