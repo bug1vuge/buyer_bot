@@ -149,19 +149,26 @@ input {
 }
 /*  */
 
-/* header */
-.header{
-  margin-bottom: 20px;
+
+
+/* payment */
+.payment {
+  padding: 100px 0;
 }
 
-.header__inner {
+.payment__inner{
+  padding: 50px;
+  background: #F7F7F7;
+}
+
+.payment__header-inner {
   display: flex;
   align-items: flex-start;
   flex-direction: column;
   gap: 20px;
 }
 
-.header__title {
+.payment__header-title {
   font-family: "Inter", sans-serif;
   font-style: normal;
   font-weight: 500;
@@ -170,26 +177,13 @@ input {
   color: #000;
 }
 
-.header__price {
+.payment__header-price {
   font-family: "Inter", sans-serif;
   font-style: normal;
   font-weight: 700;
   font-size: 20px;
   line-height: 1;
   color: #000;
-}
-
-@media (max-width: 768px) {
-  .header__inner {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-/* header */
-
-/* payment */
-.payment {
-  padding: 100px 0;
 }
 
 .payment__blocks {
