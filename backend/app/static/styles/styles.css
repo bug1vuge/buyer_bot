@@ -142,7 +142,7 @@ input {
 
 /* common */
 .container {
-  max-width: 1024px;
+  max-width: 1490px;
   width: 100%;
   margin: 0 auto;
   padding: 0 10px;
@@ -192,17 +192,6 @@ input {
   gap: 30px;
 }
 
-.payment__block-label {
-  font-family: "Inter", sans-serif;
-  font-style: normal;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 1;
-  color: #000;
-
-  margin-bottom: 15px;
-}
-
 .payment__block-field {
   width: 100%;
 }
@@ -214,15 +203,15 @@ input {
   font-family: "Inter", sans-serif;
   font-style: normal;
   font-weight: 400;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
-  color: #000;
+  color: #272727;
 
-  padding: 0 20px;
+  padding: 0 15px;
 
-  border: 1px solid #000;
-  border-radius: 10px;
-
+  border: 2px solid #AAB7B8;
+  border-radius: 5px;
+  background: #fff;
   transition: border-color 0.2s ease;
 }
 
