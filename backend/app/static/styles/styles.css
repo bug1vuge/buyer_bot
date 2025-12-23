@@ -1,39 +1,20 @@
 /* fonts */
 @font-face {
-  font-family: "Inter";
-  src: local("Inter-Regular"),
-    url("/static/fonts/Inter-Regular.woff") format("woff"),
-    url("/static/fonts/Inter-Regular.woff2") format("woff2");
+  font-family: "Roboto";
+  src: local("Roboto-Regular"),
+    url("/static/fonts/Roboto-Regular.woff") format("woff"),
+    url("/static/fonts/Roboto-Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "Inter";
-  src: local("Inter-Medium"),
-    url("/static/fonts/Inter-Medium.woff") format("woff"),
-    url("/static/fonts/Inter-Medium.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Inter";
-  src: local("Inter-SemiBold"),
-    url("/static/fonts/Inter-SemiBold.woff") format("woff"),
-    url("/static/fonts/Inter-SemiBold.woff2") format("woff2");
+  font-family: "Roboto";
+  src: local("Roboto-SemiBold"),
+    url("/static/fonts/Roboto-SemiBold.woff") format("woff"),
+    url("/static/fonts/Roboto-SemiBold.woff2") format("woff2");
   font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Inter";
-  src: local("Inter-Bold"), url("/static/fonts/Inter-Bold.woff") format("woff"),
-    url("/static/fonts/Inter-Bold.woff2") format("woff2");
-  font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
@@ -318,7 +299,7 @@ input {
 
   font-family: "Roboto", sans-serif;
   font-style: normal;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 16px;
   line-height: 1;
   color: #272727;
