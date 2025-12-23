@@ -11,10 +11,10 @@
 
 @font-face {
   font-family: "Roboto";
-  src: local("Roboto-SemiBold"),
-    url("/static/fonts/Roboto-SemiBold.woff") format("woff"),
-    url("/static/fonts/Roboto-SemiBold.woff2") format("woff2");
-  font-weight: 600;
+  src: local("Roboto-Medium"),
+    url("/static/fonts/Roboto-Medium.woff") format("woff"),
+    url("/static/fonts/Roboto-Medium.woff2") format("woff2");
+  font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
@@ -156,7 +156,7 @@ input {
 .payment__header-title {
   font-family: "Roboto", sans-serif;
   font-style: normal;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 24px;
   line-height: 1;
   color: #000;
@@ -165,7 +165,7 @@ input {
 .payment__header-price {
   font-family: "Roboto", sans-serif;
   font-style: normal;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 20px;
   line-height: 1;
   color: #000;
@@ -299,7 +299,7 @@ input {
 
   font-family: "Roboto", sans-serif;
   font-style: normal;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 16px;
   line-height: 1;
   color: #272727;
