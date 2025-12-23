@@ -153,7 +153,7 @@ input {
 
 /* payment */
 .payment {
-  padding: 5px 0;
+  padding: 50px 0;
 }
 
 .payment__inner{
@@ -193,7 +193,7 @@ input {
 .payment__blocks {
   display: flex;
   flex-direction: column;
-  gap: 30px;
+  gap: 15px;
 }
 
 .payment__block-field {
