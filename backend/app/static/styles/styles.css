@@ -332,8 +332,36 @@ input {
   padding: 15px;
 }
 
+@media(max-width: 768px) {
+  .payment__inner{
+    padding: 30px;
+  }
 
-/*  */
+  .payment__header-price{
+    font-size: 16px;
+  }
+
+  .payment__header-title{
+    font-size: 20px;
+  }
+
+  .payment__submit{
+    padding: 15px;
+  }
+}
+
+@media(max-width: 768px) {
+  .payment__inner{
+    padding: 30px 15px;
+  }
+
+  .payment__checkbox-text, .payment__checkbox-text button{
+    font-size: 11px;
+  }
+}
+
+
+ /*  */
 
 /* footer */
 .footer {
