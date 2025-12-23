@@ -111,7 +111,7 @@ button:disabled {
 }
 
 button:hover{
-  color: #4caf50;
+  color: #5DADE2;
   transition: color .4s ease;
 }
 
@@ -286,10 +286,6 @@ input {
   color: #34495E;
 }
 
-.payment__checkbox-text button:hover{
-  color: #272727;
-}
-
 .payment__submit {
   width: 100%;
   padding: 20px;
@@ -352,6 +348,7 @@ input {
   line-height: 1;
   color: #000;
 }
+
 /*  */
 
 /* modal */
