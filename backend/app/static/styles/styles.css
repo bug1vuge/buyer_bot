@@ -229,17 +229,17 @@ input {
   font-family: "Inter", sans-serif;
   font-style: normal;
   font-weight: 400;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
-  color: #000;
+  color: #272727;
 
-  padding: 20px;
+  padding: 15px;
 
   resize: none;
-  min-height: 120px;
+  min-height: 190px;
   width: 100%;
-  border: 1px solid #000;
-  border-radius: 10px;
+  border: 2px solid #AAB7B8;
+  border-radius: 5px;
 }
 
 .payment__label {
@@ -295,40 +295,36 @@ input {
   font-family: "Inter", sans-serif;
   font-style: normal;
   font-weight: 400;
-  font-size: 16px;
-  line-height: 1.4;
-  color: #000;
-}
-
-.payment__checkbox-text button{
-  text-decoration: underline;
+  font-size: 15px;
+  line-height: 1.2;
+  color: #34495E;
 }
 
 .payment__submit {
   width: 100%;
-  height: 40px;
+  padding: 20px;
 
-  border-radius: 10px;
-  border: 1px solid #000;
+  border-radius: 8px;
+  border: 3px solid #272727;
 
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 5px;
 
   font-family: "Inter", sans-serif;
   font-style: normal;
   font-weight: 500;
   font-size: 16px;
   line-height: 1;
-  color: #000;
+  color: #272727;
 
   background: #fff;
   transition: all 0.4s ease;
 }
 
 .payment__submit:hover {
-  background: #000;
+  background: #272727;
   color: #fff;
   transition: all 0.4s ease;
 }
